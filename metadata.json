@@ -1,0 +1,8 @@
+{
+  "name": "GVCN SMART CLASS",
+  "description": "Trợ lý giáo viên chủ nhiệm - Quản lý lớp học và theo dõi thi đua học sinh với 12 tiêu chí",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

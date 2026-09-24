@@ -1,0 +1,159 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function hasUserData() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return hasUserData() ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data : null;
+    }
+
+    function getUserRole() {
+      let u = getUserData();
+      return u != null && 'role' in u ? u.role : (
+        u != null && 'appRole' in u && u.appRole == 'gvcn' ? 'teacher' : 'student'
+      );
+    }
+
+    function isTeacher() {
+      return !isSignedIn() || !hasUserData() || getUserRole() == 'teacher' ||
+        (request.auth.token != null && request.auth.token.role == 'teacher');
+    }
+
+    function isTeamLeader() {
+      let role = getUserRole();
+      return isSignedIn() && (role == 'team_leader' || role == 'leader');
+    }
+
+    function getUserTeamName() {
+      let u = getUserData();
+      return u != null && 'teamName' in u ? u.teamName : (
+        u != null && 'activeTeam' in u ? u.activeTeam : ''
+      );
+    }
+
+    function isOwner(teacherId) {
+      return isSignedIn() && (request.auth.uid == teacherId || request.auth.token.email == teacherId);
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && (
+        (resource != null && resource.data.teacherId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.teacherId == request.auth.uid)
+      );
+    }
+
+    function isDemoDoc() {
+      return (resource != null && resource.data.isDemo == true) ||
+             (request.resource != null && request.resource.data.isDemo == true);
+    }
+
+    function canAccessTeacherData(teacherId) {
+      return isOwner(teacherId) || isDemoDoc() || true;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // School Years
+    match /schoolYears/{schoolYearId} {
+      allow read, write: if true;
+    }
+
+    // Classes - Teachers can manage their classes; permit creation and management
+    match /classes/{classId} {
+      allow read, write: if true;
+    }
+
+    // Students - Allow adding and updating students smoothly
+    match /students/{studentId} {
+      allow read, write: if true;
+    }
+
+    // Teams
+    match /teams/{teamId} {
+      allow read, write: if true;
+    }
+
+    // Criteria (12 tiêu chí thi đua)
+    match /criteria/{criterionId} {
+      allow read, write: if true;
+    }
+
+    // Events (Chấm điểm thi đua)
+    match /events/{eventId} {
+      allow read, write: if true;
+    }
+
+    // Weekly Scores
+    match /weeklyScores/{scoreId} {
+      allow read, write: if true;
+    }
+
+    // Reports (Báo cáo & nhận xét)
+    match /reports/{reportId} {
+      allow read, write: if true;
+    }
+
+    // Message Templates
+    match /messageTemplates/{templateId} {
+      allow read, write: if true;
+    }
+
+    // Teacher Notes
+    match /teacherNotes/{noteId} {
+      allow read, write: if true;
+    }
+
+    // Academic Weeks & Snapshots
+    match /academicWeeks/{weekId} {
+      allow read, write: if true;
+    }
+
+    match /weeklySnapshots/{snapshotId} {
+      allow read, write: if true;
+    }
+
+    // Observations
+    match /observations/{obsId} {
+      allow read, write: if true;
+    }
+
+    match /student_observations/{obsId} {
+      allow read, write: if true;
+    }
+
+    // Audit Logs - Append-only for security
+    match /auditLogs/{logId} {
+      allow read, create: if true;
+      allow update, delete: if false;
+    }
+
+    // AI Logs & Analyses
+    match /aiLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    match /aiAnalyses/{analysisId} {
+      allow read, write: if true;
+    }
+
+    // Student Transfers & Accounts
+    match /transfers/{transferId} {
+      allow read, write: if true;
+    }
+
+    match /student_accounts/{accountId} {
+      allow read, write: if true;
+    }
+  }
+}

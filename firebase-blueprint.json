@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "ClassInfo": {
+      "title": "ClassInfo",
+      "description": "Information about an academic class managed by GVCN",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolYear": { "type": "string" },
+        "grade": { "type": "string" },
+        "semester": { "type": "number" },
+        "currentWeek": { "type": "number" },
+        "startingScore": { "type": "number" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "totalStudents": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["classId", "className", "teacherId"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student enrolled in the class",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "classId": { "type": "string" },
+        "studentNumber": { "type": "number" },
+        "fullName": { "type": "string" },
+        "gender": { "type": "string" },
+        "teamId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "cadreRole": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["studentId", "classId", "studentNumber", "fullName"]
+    },
+    "Team": {
+      "title": "Team",
+      "description": "One of the 4 competition teams in the class",
+      "type": "object",
+      "properties": {
+        "teamId": { "type": "string" },
+        "classId": { "type": "string" },
+        "teamName": { "type": "string" },
+        "leaderStudentId": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["teamId", "classId", "teamName"]
+    },
+    "Criterion": {
+      "title": "Criterion",
+      "description": "One of the 12 evaluation criteria for student conduct",
+      "type": "object",
+      "properties": {
+        "criterionId": { "type": "string" },
+        "classId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "positiveScore": { "type": "number" },
+        "negativeScore": { "type": "number" },
+        "active": { "type": "boolean" },
+        "order": { "type": "number" }
+      },
+      "required": ["criterionId", "name", "category"]
+    },
+    "CompetitionEvent": {
+      "title": "CompetitionEvent",
+      "description": "A scoring or conduct incident logged for a student",
+      "type": "object",
+      "properties": {
+        "eventId": { "type": "string" },
+        "classId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "criterionId": { "type": "string" },
+        "criterionName": { "type": "string" },
+        "score": { "type": "number" },
+        "week": { "type": "number" },
+        "date": { "type": "string" },
+        "note": { "type": "string" },
+        "evaluatorId": { "type": "string" },
+        "evaluatorRole": { "type": "string" }
+      },
+      "required": ["eventId", "classId", "studentId", "score", "week"]
+    },
+    "WeeklyScore": {
+      "title": "WeeklyScore",
+      "description": "Aggregated score for a student for an academic week",
+      "type": "object",
+      "properties": {
+        "scoreId": { "type": "string" },
+        "classId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "week": { "type": "number" },
+        "startingScore": { "type": "number" },
+        "totalPositive": { "type": "number" },
+        "totalNegative": { "type": "number" },
+        "finalScore": { "type": "number" },
+        "rank": { "type": "string" }
+      },
+      "required": ["scoreId", "classId", "studentId", "week", "finalScore"]
+    }
+  },
+  "firestore": {
+    "/classes/{classId}": {
+      "schema": "ClassInfo",
+      "description": "Primary classes managed by GVCN"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Students in the classroom"
+    },
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "Class teams"
+    },
+    "/criteria/{criterionId}": {
+      "schema": "Criterion",
+      "description": "12 conduct criteria"
+    },
+    "/events/{eventId}": {
+      "schema": "CompetitionEvent",
+      "description": "Conduct and competition scoring events"
+    },
+    "/weeklyScores/{scoreId}": {
+      "schema": "WeeklyScore",
+      "description": "Weekly aggregated scores"
+    }
+  }
+}

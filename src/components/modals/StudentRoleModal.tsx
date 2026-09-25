@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Student, ClassCadreRole, TeamRole } from '../../types';
 import { useClassData } from '../../hooks/useClassData';
+import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../ui/Toast';
 import { 
   ShieldCheck, 
@@ -26,6 +27,7 @@ export const StudentRoleModal: React.FC<StudentRoleModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { roleSession } = useAuth();
   const { assignStudentRole, teamPasscodes } = useClassData();
   const { showToast } = useToast();
 
@@ -42,7 +44,7 @@ export const StudentRoleModal: React.FC<StudentRoleModalProps> = ({
     }
   }, [student, teamPasscodes]);
 
-  if (!student) return null;
+  if (!student || roleSession.category !== 'gvcn') return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

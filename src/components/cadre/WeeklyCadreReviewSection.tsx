@@ -51,6 +51,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const realLopPhoLaoDong = students.find(s => s.cadreRole === 'lop_pho_lao_dong');
   const realLopPhoTratTu = students.find(s => s.cadreRole === 'lop_pho_trat_tu');
   const realBiThu = students.find(s => s.cadreRole === 'bi_thu');
+  const realPhoBiThu = students.find(s => s.cadreRole === 'pho_bi_thu');
 
   // RBAC Permission checks
   const isGVCN = roleSession.category === 'gvcn';
@@ -59,11 +60,12 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const isLopPhoLaoDong = roleSession.category === 'cadre' && roleSession.cadreRole === 'lop_pho_lao_dong';
   const isLopPhoTratTu = roleSession.category === 'cadre' && roleSession.cadreRole === 'lop_pho_trat_tu';
   const isBiThu = roleSession.category === 'cadre' && roleSession.cadreRole === 'bi_thu';
+  const isPhoBiThu = roleSession.category === 'cadre' && roleSession.cadreRole === 'pho_bi_thu';
   const isTeamLeader = roleSession.category === 'to_truong';
   const userTeamName = roleSession.teamName || 'Tổ 1';
 
   // Can this user edit anything?
-  const canEditAny = isGVCN || isLopTruong || isLopPhoHocTap || isLopPhoLaoDong || isLopPhoTratTu || isBiThu || isTeamLeader;
+  const canEditAny = isGVCN || isLopTruong || isLopPhoHocTap || isLopPhoLaoDong || isLopPhoTratTu || isBiThu || isPhoBiThu || isTeamLeader;
   const isReadOnlyStudent = !canEditAny;
 
   // Granular section permissions
@@ -71,7 +73,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const canEditAcademic = isGVCN || isLopTruong || isLopPhoHocTap;
   const canEditDiscipline = isGVCN || isLopTruong || isLopPhoTratTu;
   const canEditHygiene = isGVCN || isLopTruong || isLopPhoLaoDong;
-  const canEditMovement = isGVCN || isLopTruong || isBiThu;
+  const canEditMovement = isGVCN || isLopTruong || isBiThu || isPhoBiThu;
   const canEditTeam = (teamName: string) => {
     if (isGVCN || isLopTruong) return true;
     if (isTeamLeader && userTeamName === teamName) return true;

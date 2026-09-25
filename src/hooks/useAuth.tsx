@@ -86,6 +86,16 @@ export const ROLE_CONFIGS: Record<AppLoginRole, {
     canManageClass: false,
     description: 'Ban cán sự lớp: Đánh giá các hoạt động phong trào Đoàn - Đội và hoạt động ngoại khóa.'
   },
+  pho_bi_thu: {
+    title: 'Phó Bí thư Chi đoàn',
+    badge: 'Ban cán sự • Hỗ trợ phong trào',
+    category: 'cadre',
+    cadreRole: 'pho_bi_thu',
+    defaultStudentName: 'Phó Bí thư',
+    canGrade: true,
+    canManageClass: false,
+    description: 'Ban cán sự lớp: Hỗ trợ theo dõi các hoạt động phong trào, Đoàn - Đội và nề nếp lớp.'
+  },
   to_truong_to_1: {
     title: 'Tổ trưởng Tổ 1',
     badge: 'Chấm thi đua Tổ 1',
@@ -573,6 +583,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         targetRole = 'lop_pho_trat_tu';
       } else if (account.cadreRole === 'bi_thu' || account.role === 'bi_thu') {
         targetRole = 'bi_thu';
+      } else if (account.cadreRole === 'pho_bi_thu') {
+        targetRole = 'pho_bi_thu';
       } else if (account.role === 'to_truong' || account.canGrade || (account as any).isTeamLeader) {
         const teamNum = (account.teamName || '').replace(/\D/g, '');
         if (teamNum === '1') targetRole = 'to_truong_to_1';

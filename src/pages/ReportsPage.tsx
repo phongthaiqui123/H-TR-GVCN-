@@ -212,6 +212,20 @@ export const ReportsPage: React.FC = () => {
     );
   };
 
+  if (roleSession?.category === 'thanh_vien') {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+          <FileText className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">Giới hạn quyền Báo cáo & Phụ huynh</h2>
+        <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+          Khu vực Báo cáo chuyên sâu và Soạn tin nhắn gửi Phụ huynh dành riêng cho Giáo viên chủ nhiệm và Ban cán sự lớp.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16 animate-fade-in">
       {/* Header */}

@@ -70,7 +70,10 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
     teacherName
   } = useClassData();
   const { roleSession } = useAuth();
+  const isTeacher = roleSession.category === 'gvcn';
   const isTeamLeader = roleSession.category === 'to_truong';
+  const isStudent = roleSession.category === 'thanh_vien';
+  const canManageClass = roleSession.canManageClass ?? isTeacher;
   const myTeamName = roleSession.teamName || 'Tổ 1';
 
   // Search & Filters
@@ -198,6 +201,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   }, [isSomeSelected]);
 
   const handleToggleSelectAll = () => {
+    if (isStudent) return;
     if (isAllSelected) {
       const filteredIdSet = new Set(filteredStudents.map(s => s.studentId));
       setSelectedStudentIds(prev => prev.filter(id => !filteredIdSet.has(id)));
@@ -209,6 +213,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleToggleStudent = (studentId: string, e?: React.MouseEvent | React.ChangeEvent) => {
+    if (isStudent) return;
     if (e) e.stopPropagation();
     setSelectedStudentIds(prev => 
       prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
@@ -216,19 +221,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleBatchMoveTeam = async (targetTeamName: string) => {
-    if (isTeamLeader || selectedStudentIds.length === 0) return;
+    if (isStudent || isTeamLeader || !canManageClass || selectedStudentIds.length === 0) return;
     await batchUpdateStudentsTeam(selectedStudentIds, targetTeamName);
   };
 
   const handleConfirmBatchDelete = async () => {
-    if (isTeamLeader || selectedStudentIds.length === 0) return;
+    if (isStudent || isTeamLeader || !canManageClass || selectedStudentIds.length === 0) return;
     await batchDeleteStudents(selectedStudentIds);
     setSelectedStudentIds([]);
     setIsBatchDeleteConfirmOpen(false);
   };
 
   const handleConfirmBatchGrading = async () => {
-    if (selectedStudentIds.length === 0 || !batchCriterionId) return;
+    if (isStudent || !roleSession.canGrade || selectedStudentIds.length === 0 || !batchCriterionId) return;
     const evId = roleSession ? roleSession.role : 'teacher';
     const evName = roleSession?.displayName || teacherName || 'Giáo viên chủ nhiệm';
     const evRole = roleSession?.roleLabel || 'Giáo viên chủ nhiệm';
@@ -257,6 +262,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleRunDeduplication = async () => {
+    if (isStudent || !canManageClass) return;
     setDedupLoading(true);
     try {
       const res = await deduplicateStudents();
@@ -272,6 +278,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleOpenAddModal = () => {
+    if (isStudent || !canManageClass) return;
     setFormName('');
     setFormTeamName(teams[0]?.teamName || 'Tổ 1');
     setFormGender('male');
@@ -283,6 +290,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleOpenEditModal = (student: Student) => {
+    if (isStudent || !canManageClass) return;
     setEditingStudent(student);
     setFormName(student.fullName);
     setFormTeamName(student.teamName || 'Tổ 1');
@@ -295,7 +303,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
 
   const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formName.trim()) return;
+    if (isStudent || !canManageClass || !formName.trim()) return;
 
     const matchedTeam = teams.find(t => t.teamName === formTeamName) || teams[0];
     const isTeamLeader = formTeamRole === 'to_truong';
@@ -332,6 +340,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
   };
 
   const handleConfirmDelete = async () => {
+    if (isStudent || !canManageClass) return;
     if (deletingStudentId) {
       await deleteStudentById(deletingStudentId);
       setDeletingStudentId(null);
@@ -437,6 +446,11 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
             <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-bold shadow-xs">
               <span>🎖️ CHẾ ĐỘ TỔ TRƯỞNG: {myTeamName}</span>
             </div>
+          ) : isStudent ? (
+            <div className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-xs">
+              <Eye className="w-4 h-4 text-slate-500" />
+              <span>CHẾ ĐỘ HỌC SINH (CHỈ XEM DANH SÁCH & HỒ SƠ)</span>
+            </div>
           ) : (
             <>
               {/* Nút Cấp tài khoản & Quản lý Tên đăng nhập */}
@@ -463,7 +477,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
               <button
                 id="btn-open-import"
                 onClick={() => setIsImportModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>Import Excel/CSV</span>
@@ -516,13 +530,15 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
             </div>
           </div>
 
-          <button
-            onClick={() => setIsCadreModalOpen(true)}
-            className="self-start sm:self-auto text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            <span>Chỉnh sửa phân quyền</span>
-          </button>
+          {isTeacher && (
+            <button
+              onClick={() => setIsCadreModalOpen(true)}
+              className="self-start sm:self-auto text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Chỉnh sửa phân quyền</span>
+            </button>
+          )}
         </div>
 
         {/* 2 Blocks: Ban cán sự lớp & Tổ trưởng */}
@@ -601,15 +617,24 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                 <span className="text-xs font-black text-slate-900 truncate block">
                   {leaderTo1 ? leaderTo1.fullName : <em className="text-rose-400 font-normal">Chưa chỉ định</em>}
                 </span>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
-                  <span className="text-slate-500 font-medium flex items-center gap-0.5">
-                    <Lock className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>Pass code:</span>
-                  </span>
-                  <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                    {teamPasscodes['Tổ 1'] || '1234'}
-                  </span>
-                </div>
+                {isTeacher ? (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-500 font-medium flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>Pass code:</span>
+                    </span>
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                      {teamPasscodes['Tổ 1'] || '1234'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Chấm nề nếp Tổ 1</span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Tổ 2 */}
@@ -621,15 +646,24 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                 <span className="text-xs font-black text-slate-900 truncate block">
                   {leaderTo2 ? leaderTo2.fullName : <em className="text-rose-400 font-normal">Chưa chỉ định</em>}
                 </span>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
-                  <span className="text-slate-500 font-medium flex items-center gap-0.5">
-                    <Lock className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>Pass code:</span>
-                  </span>
-                  <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                    {teamPasscodes['Tổ 2'] || '1234'}
-                  </span>
-                </div>
+                {isTeacher ? (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-500 font-medium flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>Pass code:</span>
+                    </span>
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                      {teamPasscodes['Tổ 2'] || '1234'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Chấm nề nếp Tổ 2</span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Tổ 3 */}
@@ -641,15 +675,24 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                 <span className="text-xs font-black text-slate-900 truncate block">
                   {leaderTo3 ? leaderTo3.fullName : <em className="text-rose-400 font-normal">Chưa chỉ định</em>}
                 </span>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
-                  <span className="text-slate-500 font-medium flex items-center gap-0.5">
-                    <Lock className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>Pass code:</span>
-                  </span>
-                  <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                    {teamPasscodes['Tổ 3'] || '1234'}
-                  </span>
-                </div>
+                {isTeacher ? (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-500 font-medium flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>Pass code:</span>
+                    </span>
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                      {teamPasscodes['Tổ 3'] || '1234'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Chấm nề nếp Tổ 3</span>
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Tổ 4 */}
@@ -661,15 +704,24 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                 <span className="text-xs font-black text-slate-900 truncate block">
                   {leaderTo4 ? leaderTo4.fullName : <em className="text-rose-400 font-normal">Chưa chỉ định</em>}
                 </span>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
-                  <span className="text-slate-500 font-medium flex items-center gap-0.5">
-                    <Lock className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>Pass code:</span>
-                  </span>
-                  <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
-                    {teamPasscodes['Tổ 4'] || '1234'}
-                  </span>
-                </div>
+                {isTeacher ? (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px]">
+                    <span className="text-slate-500 font-medium flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>Pass code:</span>
+                    </span>
+                    <span className="font-mono font-bold text-emerald-800 bg-emerald-50 px-1 py-0.2 rounded border border-emerald-200">
+                      {teamPasscodes['Tổ 4'] || '1234'}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3 text-emerald-600" />
+                      <span>Chấm nề nếp Tổ 4</span>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -692,7 +744,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
 
         <div className="flex items-center gap-2 flex-wrap">
           {/* Nút lọc học sinh trùng lặp nếu có (chỉ GVCN) */}
-          {!isTeamLeader && totalDuplicateCount > 0 && (
+          {isTeacher && totalDuplicateCount > 0 && (
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setOnlyDuplicatesFilter(prev => !prev)}
@@ -800,17 +852,19 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
         <table className="w-full text-left border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 font-semibold text-[11px] uppercase tracking-wider">
-              {/* Ô chọn 1 lần hết tất cả học sinh */}
-              <th className="py-3 px-3 w-10 text-center">
-                <input
-                  type="checkbox"
-                  ref={masterCheckboxRef}
-                  checked={isAllSelected}
-                  onChange={handleToggleSelectAll}
-                  title={isAllSelected ? "Bỏ chọn tất cả học sinh" : "Chọn 1 lần hết tất cả học sinh"}
-                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                />
-              </th>
+              {/* Ô chọn 1 lần hết tất cả học sinh - chỉ GVCN / cán sự */}
+              {!isStudent && (
+                <th className="py-3 px-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    ref={masterCheckboxRef}
+                    checked={isAllSelected}
+                    onChange={handleToggleSelectAll}
+                    title={isAllSelected ? "Bỏ chọn tất cả học sinh" : "Chọn 1 lần hết tất cả học sinh"}
+                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                  />
+                </th>
+              )}
               <th className="py-3 px-3 w-12 text-center">STT</th>
               <th className="py-3 px-4">Họ và tên</th>
               <th className="py-3 px-4">Tổ</th>
@@ -842,19 +896,21 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                     }`}
                     onClick={() => onSelectStudent(std.studentId)}
                   >
-                    {/* Ô chọn lần lượt từng học sinh */}
-                    <td 
-                      className="py-3 px-3 text-center"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleStudent(std.studentId)}
-                        title={`Chọn em ${std.fullName}`}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                      />
-                    </td>
+                    {/* Ô chọn lần lượt từng học sinh - chỉ GVCN / cán sự */}
+                    {!isStudent && (
+                      <td 
+                        className="py-3 px-3 text-center"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleStudent(std.studentId)}
+                          title={`Chọn em ${std.fullName}`}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </td>
+                    )}
 
                     <td className="py-3 px-3 text-center font-bold text-slate-400">
                       {std.studentNumber}
@@ -947,7 +1003,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                     >
                       <div className="flex items-center justify-end gap-1">
                         {/* Nút Phân quyền nhanh - chỉ GVCN */}
-                        {!isTeamLeader && (
+                        {isTeacher && (
                           <button
                             onClick={() => setRoleModalStudent(std)}
                             title="Phân quyền chức vụ / Tổ trưởng"
@@ -965,7 +1021,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                           <Eye className="w-4 h-4" />
                         </button>
                         
-                        {!isTeamLeader && (
+                        {isTeacher && (
                           <>
                             <button
                               onClick={() => handleOpenEditModal(std)}
@@ -1022,15 +1078,17 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
               <div>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <div className="flex items-center gap-2">
-                    {/* Checkbox mobile */}
-                    <div onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => handleToggleStudent(std.studentId)}
-                        className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                      />
-                    </div>
+                    {/* Checkbox mobile - chỉ khi không phải học sinh */}
+                    {!isStudent && (
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => handleToggleStudent(std.studentId)}
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </div>
+                    )}
                     <span className="w-6 text-center text-xs font-bold text-slate-400">
                       #{std.studentNumber}
                     </span>
@@ -1092,7 +1150,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                   >
                     <Eye className="w-4 h-4" />
                   </button>
-                  {!isTeamLeader && (
+                  {isTeacher && (
                     <>
                       <button
                         onClick={() => setRoleModalStudent(std)}
@@ -1125,7 +1183,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
       </div>
 
       {/* THANH THAO TÁC HÀNG LOẠT (Sticky Batch Action Bar) */}
-      {selectedStudentIds.length > 0 && (
+      {!isStudent && selectedStudentIds.length > 0 && (
         <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 z-40 bg-slate-900 text-white p-3 sm:p-4 rounded-2xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 border border-slate-700 animate-slide-up max-w-2xl">
           <div className="flex items-center gap-3 w-full sm:w-auto justify-between">
             <div className="flex items-center gap-2">
@@ -1156,7 +1214,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
             </button>
 
             {/* Chuyển tổ hàng loạt - chỉ GVCN */}
-            {!isTeamLeader && (
+            {isTeacher && (
               <select
                 onChange={(e) => {
                   if (e.target.value) {
@@ -1177,7 +1235,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
             )}
 
             {/* Xóa học sinh đã chọn - chỉ GVCN */}
-            {!isTeamLeader && (
+            {isTeacher && (
               <button
                 onClick={() => setIsBatchDeleteConfirmOpen(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"

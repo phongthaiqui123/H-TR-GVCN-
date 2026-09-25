@@ -14,6 +14,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { useClassData } from '../../hooks/useClassData';
+import { useAuth } from '../../hooks/useAuth';
 import { StudentObservation, ObservationCategory, ObservationSeverity } from '../../types';
 
 interface QuickObservationModalProps {
@@ -49,6 +50,7 @@ export const QuickObservationModal: React.FC<QuickObservationModalProps> = ({
   preSelectedStudentId
 }) => {
   const { students, observations, addObservation, removeObservation } = useClassData();
+  const { roleSession } = useAuth();
 
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   const [selectedStudentId, setSelectedStudentId] = useState<string>(preSelectedStudentId || (students[0]?.studentId || ''));
@@ -70,7 +72,7 @@ export const QuickObservationModal: React.FC<QuickObservationModalProps> = ({
     });
   }, [observations, searchTerm, filterCategory]);
 
-  if (!isOpen) return null;
+  if (!isOpen || roleSession.category === 'thanh_vien') return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

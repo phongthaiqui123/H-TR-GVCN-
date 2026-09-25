@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, RotateCcw, X } from 'lucide-react';
 import { useClassData } from '../../hooks/useClassData';
+import { useAuth } from '../../hooks/useAuth';
 
 export const BatchUndoToast: React.FC = () => {
+  const { roleSession } = useAuth();
   const { lastBatchResult, clearLastBatchResult, undoBatchEvents } = useClassData();
   const [isUndoing, setIsUndoing] = useState(false);
   const [countdown, setCountdown] = useState(7);
 
   useEffect(() => {
-    if (!lastBatchResult) return;
+    if (!lastBatchResult || roleSession.category === 'thanh_vien') return;
     setCountdown(7);
     const timer = setInterval(() => {
       setCountdown(prev => {
@@ -22,9 +24,9 @@ export const BatchUndoToast: React.FC = () => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [lastBatchResult, clearLastBatchResult]);
+  }, [lastBatchResult, clearLastBatchResult, roleSession.category]);
 
-  if (!lastBatchResult) return null;
+  if (!lastBatchResult || roleSession.category === 'thanh_vien') return null;
 
   const handleUndo = async () => {
     setIsUndoing(true);

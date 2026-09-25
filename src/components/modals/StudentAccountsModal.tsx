@@ -23,6 +23,7 @@ import {
   Users
 } from 'lucide-react';
 import { StudentAccount } from '../../types';
+import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../ui/Toast';
 
 interface StudentAccountsModalProps {
@@ -48,8 +49,12 @@ export const StudentAccountsModal: React.FC<StudentAccountsModalProps> = ({
     toggleStudentAccountStatus,
     resetStudentAccountPassword
   } = useClassData();
-
+  const { roleSession } = useAuth();
   const { showToast } = useToast();
+
+  if (roleSession.category !== 'gvcn') {
+    return null;
+  }
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -246,6 +251,10 @@ export const StudentAccountsModal: React.FC<StudentAccountsModalProps> = ({
       setIsSyncingRoles(false);
     }
   };
+
+  if (!isOpen || roleSession.category !== 'gvcn') {
+    return null;
+  }
 
   return (
     <Modal

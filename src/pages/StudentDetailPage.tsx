@@ -53,6 +53,7 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
   } = useClassData();
   const { roleSession } = useAuth();
   const isTeamLeader = roleSession.category === 'to_truong';
+  const isStudent = roleSession.category === 'thanh_vien';
   const myTeamName = roleSession.teamName || 'Tổ 1';
 
   const [isTripleModalOpen, setIsTripleModalOpen] = useState(false);
@@ -293,42 +294,49 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
         </div>
 
         {/* Quick Thực Chiến Actions Toolbar */}
-        <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <Bookmark className="w-4 h-4 text-indigo-500" />
-            <span>Công cụ sư phạm thực chiến cho em {student.fullName}:</span>
+        {!isStudent ? (
+          <div className="mt-5 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+              <Bookmark className="w-4 h-4 text-indigo-500" />
+              <span>Công cụ sư phạm thực chiến cho em {student.fullName}:</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setIsQuickObsModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
+                <span>+ Ghi nhận sự việc / hành vi</span>
+              </button>
+
+              {!isTeamLeader && (
+                <>
+                  <button
+                    onClick={() => setIsTripleModalOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+                    <span>3 Phiên Bản Nhận Xét (AI)</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsDraftParentModalOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Send className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Soạn tin nhắn Phụ Huynh</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setIsQuickObsModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-            >
-              <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
-              <span>+ Ghi nhận sự việc / hành vi</span>
-            </button>
-
-            {!isTeamLeader && (
-              <>
-                <button
-                  onClick={() => setIsTripleModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-violet-50 hover:bg-violet-100 text-violet-700 border border-violet-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-violet-600" />
-                  <span>3 Phiên Bản Nhận Xét (AI)</span>
-                </button>
-
-                <button
-                  onClick={() => setIsDraftParentModalOpen(true)}
-                  className="px-3.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Send className="w-3.5 h-3.5 text-teal-600" />
-                  <span>Soạn tin nhắn Phụ Huynh</span>
-                </button>
-              </>
-            )}
+        ) : (
+          <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <span className="font-semibold text-slate-600">Hồ sơ thi đua & rèn luyện cá nhân • Chế độ xem</span>
+            <span className="text-[11px] text-slate-400">Dữ liệu được cập nhật từ GVCN & Ban cán sự</span>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Nhật ký ghi nhận hành vi của học sinh này */}
@@ -341,12 +349,14 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
                 📋 Sổ ghi nhận quan sát & hành vi ({studentObservations.length} sự việc)
               </h3>
             </div>
-            <button
-              onClick={() => setIsQuickObsModalOpen(true)}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
-            >
-              + Thêm ghi nhận
-            </button>
+            {!isStudent && (
+              <button
+                onClick={() => setIsQuickObsModalOpen(true)}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer"
+              >
+                + Thêm ghi nhận
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
@@ -580,7 +590,8 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
       </div>
 
       {/* TẠO NHẬN XÉT HỌC SINH (AI) & SOẠN TIN NHẮN PHỤ HUYNH (AI) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {!isStudent && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* 1. Tạo nhận xét bằng AI */}
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
@@ -729,6 +740,7 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
         </div>
 
       </div>
+      )}
 
       {/* Prompt 10 Modals */}
       {studentScoreInfo && (

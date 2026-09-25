@@ -5,6 +5,7 @@ export type AppLoginRole =
   | 'lop_pho_lao_dong'
   | 'lop_pho_trat_tu'
   | 'bi_thu'
+  | 'pho_bi_thu'
   | 'to_truong_to_1' 
   | 'to_truong_to_2' 
   | 'to_truong_to_3' 
@@ -134,6 +135,8 @@ export interface ClassInfo {
   createdAt: string;
   status?: 'active' | 'archived';
   isDemo?: boolean;
+  gvcnPasscode?: string; // Pass code bảo mật riêng của GVCN (mặc định: 1234)
+  cadrePasscodes?: Record<string, string>; // Pass code phân quyền Ban cán sự lớp
   teamLeaderPasscodes?: Record<string, string>; // e.g. { 'Tổ 1': '1234', 'Tổ 2': '1234' }
 }
 

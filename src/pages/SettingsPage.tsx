@@ -20,14 +20,22 @@ import {
   ArrowUp,
   ArrowDown,
   CheckCircle2,
-  ListOrdered
+  ListOrdered,
+  Lock,
+  KeyRound,
+  Eye,
+  EyeOff,
+  Copy,
+  Crown
 } from 'lucide-react';
 import { Criterion } from '../types';
+import { useAuth } from '../hooks/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ConfirmDeleteDemoModal } from '../components/modals/ConfirmDeleteDemoModal';
 
 export const SettingsPage: React.FC = () => {
+  const { roleSession } = useAuth();
   const { 
     classes,
     currentClass, 
@@ -43,7 +51,15 @@ export const SettingsPage: React.FC = () => {
     deleteCriterion,
     seedFullDemoClasses,
     reloadDemoDataAction,
-    deleteDemoDataAction
+    deleteDemoDataAction,
+    gvcnPasscode,
+    updateGvcnPasscode,
+    cadrePasscodes,
+    updateCadrePasscodes,
+    teamPasscodes,
+    batchUpdateTeamPasscodes,
+    students,
+    teams
   } = useClassData();
 
   // Demo state
@@ -51,6 +67,21 @@ export const SettingsPage: React.FC = () => {
   const [seedProgress, setSeedProgress] = useState<{ status: string; percent: number } | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [demoMessage, setDemoMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Passcode states
+  const [localGvcnPasscode, setLocalGvcnPasscode] = useState(gvcnPasscode || '1234');
+  const [showGvcnPasscode, setShowGvcnPasscode] = useState(false);
+  const [localCadrePasscode, setLocalCadrePasscode] = useState('1234');
+  const [showCadrePasscode, setShowCadrePasscode] = useState(false);
+  const [localTeamPasscodes, setLocalTeamPasscodes] = useState<Record<string, string>>({
+    'Tổ 1': '1234',
+    'Tổ 2': '1234',
+    'Tổ 3': '1234',
+    'Tổ 4': '1234',
+    'Tổ 5': '1234',
+  });
+  const [isSavedPasscodes, setIsSavedPasscodes] = useState(false);
+  const [copiedPasscodesMsg, setCopiedPasscodesMsg] = useState(false);
 
   // Class & Teacher Info form
   const [teacherNameInput, setTeacherNameInput] = useState(teacherName);
@@ -100,6 +131,104 @@ export const SettingsPage: React.FC = () => {
       }
     }
   }, [currentClass]);
+
+  useEffect(() => {
+    if (gvcnPasscode) {
+      setLocalGvcnPasscode(gvcnPasscode);
+    }
+  }, [gvcnPasscode]);
+
+  useEffect(() => {
+    if (cadrePasscodes) {
+      setLocalCadrePasscode(cadrePasscodes.cadre_general || cadrePasscodes.lop_truong || '1234');
+    }
+  }, [cadrePasscodes]);
+
+  useEffect(() => {
+    if (teamPasscodes) {
+      setLocalTeamPasscodes(prev => ({
+        ...prev,
+        ...teamPasscodes
+      }));
+    }
+  }, [teamPasscodes]);
+
+  const hasTeam5 = teams.some(t => t.teamName === 'Tổ 5') || (currentClass?.teamLeaderPasscodes && 'Tổ 5' in currentClass.teamLeaderPasscodes);
+
+  const handleSavePasscodes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentClass) return;
+
+    const gPass = localGvcnPasscode.trim() || '1234';
+    await updateGvcnPasscode(gPass);
+
+    const cPass = localCadrePasscode.trim() || '1234';
+    await updateCadrePasscodes({
+      lop_truong: cPass,
+      lop_pho_hoc_tap: cPass,
+      lop_pho_lao_dong: cPass,
+      lop_pho_trat_tu: cPass,
+      bi_thu: cPass,
+      pho_bi_thu: cPass,
+      cadre_general: cPass,
+    });
+
+    await batchUpdateTeamPasscodes({
+      'Tổ 1': localTeamPasscodes['Tổ 1']?.trim() || '1234',
+      'Tổ 2': localTeamPasscodes['Tổ 2']?.trim() || '1234',
+      'Tổ 3': localTeamPasscodes['Tổ 3']?.trim() || '1234',
+      'Tổ 4': localTeamPasscodes['Tổ 4']?.trim() || '1234',
+      ...(hasTeam5 ? { 'Tổ 5': localTeamPasscodes['Tổ 5']?.trim() || '1234' } : {})
+    });
+
+    setIsSavedPasscodes(true);
+    setTimeout(() => setIsSavedPasscodes(false), 2500);
+  };
+
+  const handleCopyAllPasscodes = () => {
+    const getName = (cadreRole: string) => {
+      const s = students.find(x => x.cadreRole === cadreRole);
+      return s ? ` (${s.fullName})` : '';
+    };
+
+    const getTeamLeaderName = (teamName: string) => {
+      const s = students.find(x => x.teamName === teamName && (x.isTeamLeader || x.teamRole === 'to_truong'));
+      return s ? ` (Tổ trưởng: ${s.fullName})` : '';
+    };
+
+    const text = [
+      `🔐 DANH SÁCH MÃ PASSCODE ĐĂNG NHẬP - ${className || currentClass?.className || 'LỚP HỌC'}:`,
+      ``,
+      `👨‍🏫 GIÁO VIÊN CHỦ NHIỆM (Bảo mật riêng):`,
+      `• Passcode GVCN: ${localGvcnPasscode}`,
+      ``,
+      `👑 BAN CÁN SỰ LỚP (Nhập nhận xét tuần):`,
+      `• Passcode Ban cán sự: ${localCadrePasscode}`,
+      `  - Lớp trưởng${getName('lop_truong')}`,
+      `  - Lớp phó Học tập${getName('lop_pho_hoc_tap')}`,
+      `  - Lớp phó Lao động${getName('lop_pho_lao_dong')}`,
+      `  - Lớp phó Trật tự${getName('lop_pho_trat_tu')}`,
+      `  - Bí thư${getName('bi_thu')}`,
+      `  - Phó Bí thư${getName('pho_bi_thu')}`,
+      ``,
+      `🎖️ TỔ TRƯỞNG CÁC TỔ (Chấm thi đua):`,
+      `• Tổ 1: ${localTeamPasscodes['Tổ 1'] || '1234'}${getTeamLeaderName('Tổ 1')}`,
+      `• Tổ 2: ${localTeamPasscodes['Tổ 2'] || '1234'}${getTeamLeaderName('Tổ 2')}`,
+      `• Tổ 3: ${localTeamPasscodes['Tổ 3'] || '1234'}${getTeamLeaderName('Tổ 3')}`,
+      `• Tổ 4: ${localTeamPasscodes['Tổ 4'] || '1234'}${getTeamLeaderName('Tổ 4')}`,
+      hasTeam5 ? `• Tổ 5: ${localTeamPasscodes['Tổ 5'] || '1234'}${getTeamLeaderName('Tổ 5')}` : '',
+      ``,
+      `💡 HƯỚNG DẪN ĐĂNG NHẬP:`,
+      `- GVCN: Đăng nhập quyền "GVCN lớp" và nhập Passcode GVCN để quản trị toàn quyền.`,
+      `- Ban cán sự: Đăng nhập quyền "Ban cán sự" và nhập Passcode để vào mục Nhận xét tuần.`,
+      `- Tổ trưởng: Đăng nhập quyền "Tổ trưởng", chọn đúng tổ và nhập Passcode để chấm thi đua.`,
+      `- Học sinh: Vào xem điểm & xếp hạng bình thường (không cần mật mã, mọi passcode đều được ẩn).`
+    ].filter(Boolean).join('\n');
+
+    navigator.clipboard.writeText(text);
+    setCopiedPasscodesMsg(true);
+    setTimeout(() => setCopiedPasscodesMsg(false), 2500);
+  };
 
   const handleApplyPrefix = (prefix: 'Cô' | 'Thầy') => {
     let clean = teacherNameInput.trim();
@@ -232,6 +361,20 @@ export const SettingsPage: React.FC = () => {
       setDeletingCritId(null);
     }
   };
+
+  if (roleSession.category !== 'gvcn') {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+          <ShieldCheck className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">Giới hạn quyền Cài đặt hệ thống</h2>
+        <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+          Mục cài đặt lớp học và 12 tiêu chí thi đua chỉ dành cho Giáo viên chủ nhiệm (GVCN).
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-16 animate-fade-in">
@@ -388,7 +531,234 @@ export const SettingsPage: React.FC = () => {
         </form>
       </div>
 
-      {/* 2. CHỈNH SỬA & SẮP XẾP TIÊU CHÍ THI ĐUA */}
+      {/* 2. BẢO MẬT & QUẢN LÝ PASSCODE ĐĂNG NHẬP */}
+      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-indigo-600" />
+              <h2 className="font-bold text-base text-slate-800">
+                Bảo mật & Quản lý Passcode đăng nhập
+              </h2>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Thiết lập mã bảo vệ riêng cho GVCN, Ban cán sự lớp (nhập nhận xét tuần) và Tổ trưởng (chấm thi đua). Ẩn hoàn toàn trong chế độ Học sinh.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopyAllPasscodes}
+              className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-slate-200"
+              title="Sao chép toàn bộ danh sách Passcode gửi vào Zalo lớp"
+            >
+              <Copy className="w-3.5 h-3.5 text-slate-600" />
+              <span>{copiedPasscodesMsg ? 'Đã sao chép!' : 'Sao chép danh sách'}</span>
+            </button>
+          </div>
+        </div>
+
+        {copiedPasscodesMsg && (
+          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 animate-fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Đã sao chép đầy đủ danh sách Passcode GVCN, Ban cán sự và Tổ trưởng vào bộ nhớ tạm!</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSavePasscodes} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* GVCN Passcode Card */}
+            <div className="p-4 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-indigo-950 uppercase tracking-wide">
+                      Passcode Giáo viên chủ nhiệm
+                    </h3>
+                    <p className="text-[11px] text-indigo-700/90">
+                      Bảo vệ toàn quyền quản trị lớp học
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold bg-white text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                  Riêng GVCN
+                </span>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showGvcnPasscode ? "text" : "password"}
+                  value={localGvcnPasscode}
+                  onChange={(e) => setLocalGvcnPasscode(e.target.value)}
+                  placeholder="1234"
+                  maxLength={15}
+                  className="w-full pl-3 pr-20 py-2 border-2 border-indigo-300 rounded-xl text-sm font-mono tracking-wider font-bold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                />
+                <div className="absolute right-2 top-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowGvcnPasscode(!showGvcnPasscode)}
+                    className="p-1 text-slate-500 hover:text-slate-800 rounded cursor-pointer"
+                    title={showGvcnPasscode ? "Ẩn" : "Hiện"}
+                  >
+                    {showGvcnPasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocalGvcnPasscode(Math.floor(1000 + Math.random() * 9000).toString())}
+                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 px-1.5 py-0.5 rounded cursor-pointer"
+                    title="Tạo mã PIN ngẫu nhiên"
+                  >
+                    Đổi
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                🔒 Học sinh không thể biết hoặc xem được mã này. Dùng khi đăng nhập với vai trò "GVCN lớp".
+              </p>
+            </div>
+
+            {/* Ban cán sự lớp Passcode Card */}
+            <div className="p-4 rounded-2xl bg-sky-50/70 border border-sky-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center">
+                    <Crown className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-sky-950 uppercase tracking-wide">
+                      Passcode Ban cán sự lớp
+                    </h3>
+                    <p className="text-[11px] text-sky-700/90">
+                      Lớp trưởng, Lớp phó, Bí thư nhập nhận xét tuần
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-bold bg-white text-sky-800 px-2 py-0.5 rounded-full border border-sky-200">
+                  Nhận xét tuần
+                </span>
+              </div>
+
+              <div className="relative">
+                <input
+                  type={showCadrePasscode ? "text" : "password"}
+                  value={localCadrePasscode}
+                  onChange={(e) => setLocalCadrePasscode(e.target.value)}
+                  placeholder="1234"
+                  maxLength={15}
+                  className="w-full pl-3 pr-20 py-2 border-2 border-sky-300 rounded-xl text-sm font-mono tracking-wider font-bold bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-600"
+                />
+                <div className="absolute right-2 top-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowCadrePasscode(!showCadrePasscode)}
+                    className="p-1 text-slate-500 hover:text-slate-800 rounded cursor-pointer"
+                    title={showCadrePasscode ? "Ẩn" : "Hiện"}
+                  >
+                    {showCadrePasscode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocalCadrePasscode(Math.floor(1000 + Math.random() * 9000).toString())}
+                    className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-100 hover:bg-sky-200 px-1.5 py-0.5 rounded cursor-pointer"
+                    title="Tạo mã PIN ngẫu nhiên"
+                  >
+                    Đổi
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                👑 Cấp mã này cho các bạn Ban cán sự để đăng nhập vào trang "Nhận xét tuần" và ghi đánh giá.
+              </p>
+            </div>
+          </div>
+
+          {/* Tổ trưởng passcodes */}
+          <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold text-amber-950 uppercase tracking-wide">
+                    Passcode Tổ trưởng các tổ (Chấm thi đua)
+                  </h3>
+                  <p className="text-[11px] text-amber-800/90">
+                    Mỗi tổ có thể đặt mã passcode riêng hoặc dùng chung mã 1234
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalTeamPasscodes({
+                    'Tổ 1': '1234',
+                    'Tổ 2': '1234',
+                    'Tổ 3': '1234',
+                    'Tổ 4': '1234',
+                    'Tổ 5': '1234',
+                  });
+                }}
+                className="text-[11px] font-bold text-amber-800 hover:text-amber-950 bg-white px-2 py-1 rounded-lg border border-amber-300 cursor-pointer"
+              >
+                Đặt tất cả về 1234
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5">
+              {['Tổ 1', 'Tổ 2', 'Tổ 3', 'Tổ 4', ...(hasTeam5 ? ['Tổ 5'] : [])].map((tName) => (
+                <div key={tName} className="p-2.5 bg-white rounded-xl border border-amber-200 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-amber-900">{tName}</span>
+                    <span className="text-[10px] text-slate-400">Tổ trưởng</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={localTeamPasscodes[tName] || '1234'}
+                    onChange={(e) => setLocalTeamPasscodes(prev => ({
+                      ...prev,
+                      [tName]: e.target.value
+                    }))}
+                    placeholder="1234"
+                    maxLength={10}
+                    className="w-full px-2 py-1 text-xs font-mono font-bold text-amber-900 bg-amber-50/50 border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span>Chế độ Học sinh (Thành viên) tự động ẩn toàn bộ passcode, đảm bảo an toàn thi đua.</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isSavedPasscodes && (
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  Đã lưu Passcode!
+                </span>
+              )}
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu thay đổi Passcode</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {/* 3. CHỈNH SỬA & SẮP XẾP TIÊU CHÍ THI ĐUA */}
       <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>

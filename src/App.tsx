@@ -40,6 +40,13 @@ const MainAppContent: React.FC = () => {
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Auto-navigate Ban cán sự to cadre-review tab to enter reviews
+  React.useEffect(() => {
+    if (roleSession.category === 'cadre') {
+      setActiveTab('cadre-review');
+    }
+  }, [roleSession.role, roleSession.category]);
+
   if (authLoading || (user && classLoading && !currentClass)) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
@@ -65,7 +72,7 @@ const MainAppContent: React.FC = () => {
       setActiveTab('dashboard');
       return;
     }
-    if (tab === 'grading' && roleSession.category === 'thanh_vien') {
+    if ((tab === 'grading' || tab === 'ai-assistant') && roleSession.category === 'thanh_vien') {
       setActiveTab('dashboard');
       return;
     }
@@ -84,7 +91,10 @@ const MainAppContent: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50/70 text-slate-900 flex flex-col">
       {/* Top Header */}
-      <Header onNavigateTab={(tab) => handleSelectTab(tab as NavTab)} />
+      <Header 
+        onNavigateTab={(tab) => handleSelectTab(tab as NavTab)} 
+        onSelectStudent={handleSelectStudent} 
+      />
 
       {/* Body Layout: Sidebar + Main Content */}
       <div className="flex-1 flex overflow-hidden">
@@ -182,49 +192,55 @@ const MainAppContent: React.FC = () => {
             <ChevronRight className="w-4 h-4 text-slate-400" />
           </button>
 
-          <button
-            onClick={() => handleSelectTab('ai-assistant')}
-            className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
-              activeTab === 'ai-assistant' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Bot className="w-5 h-5 text-violet-600" />
-              <div className="flex items-center gap-1.5">
-                <span>Trợ lý Sư phạm AI</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-violet-100 text-violet-700 font-bold">
-                  PRO
-                </span>
+          {roleSession.category !== 'thanh_vien' && (
+            <button
+              onClick={() => handleSelectTab('ai-assistant')}
+              className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
+                activeTab === 'ai-assistant' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Bot className="w-5 h-5 text-violet-600" />
+                <div className="flex items-center gap-1.5">
+                  <span>Trợ lý Sư phạm AI</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-violet-100 text-violet-700 font-bold">
+                    PRO
+                  </span>
+                </div>
               </div>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
+              <ChevronRight className="w-4 h-4 text-slate-400" />
+            </button>
+          )}
 
-          <button
-            onClick={() => handleSelectTab('reports')}
-            className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
-              activeTab === 'reports' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <FileText className="w-5 h-5 text-emerald-600" />
-              <span>Trung tâm Báo cáo & Phụ huynh</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
+          {roleSession.category === 'gvcn' && (
+            <>
+              <button
+                onClick={() => handleSelectTab('reports')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
+                  activeTab === 'reports' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-emerald-600" />
+                  <span>Trung tâm Báo cáo & Phụ huynh</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
 
-          <button
-            onClick={() => handleSelectTab('settings')}
-            className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
-              activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <Settings className="w-5 h-5 text-slate-600" />
-              <span>Cài đặt lớp & 12 tiêu chí</span>
-            </div>
-            <ChevronRight className="w-4 h-4 text-slate-400" />
-          </button>
+              <button
+                onClick={() => handleSelectTab('settings')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
+                  activeTab === 'settings' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Settings className="w-5 h-5 text-slate-600" />
+                  <span>Cài đặt lớp & 12 tiêu chí</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-400" />
+              </button>
+            </>
+          )}
         </div>
       </Modal>
     </div>

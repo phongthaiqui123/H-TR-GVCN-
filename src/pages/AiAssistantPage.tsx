@@ -41,10 +41,11 @@ import {
   UserCheck, 
   HelpCircle, 
   X, 
-  Info,
-  Calendar,
-  Users,
-  Award
+  Info, 
+  Calendar, 
+  Users, 
+  Award,
+  Bot
 } from 'lucide-react';
 import { formatDateVN } from '../utils/constants';
 
@@ -394,6 +395,20 @@ export const AiAssistantPage: React.FC = () => {
       setIsLoadingIncident(false);
     }
   };
+
+  if (roleSession.category === 'thanh_vien') {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-4 text-center animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-4 shadow-inner">
+          <Bot className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900">Trợ lý Sư phạm AI dành cho Giáo viên & Cán sự</h2>
+        <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+          Tài khoản học sinh không có quyền truy cập module tư vấn sư phạm AI. Vui lòng theo dõi Bảng xếp hạng và Nhận xét tuần của lớp.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">

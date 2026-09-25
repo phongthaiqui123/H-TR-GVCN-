@@ -33,6 +33,7 @@ export const HistoryAnalyticsPage: React.FC<HistoryAnalyticsPageProps> = ({ onSe
     removeEvent
   } = useClassData();
   const { roleSession } = useAuth();
+  const isTeacher = roleSession.category === 'gvcn';
   const isTeamLeader = roleSession.category === 'to_truong';
   const myTeamName = roleSession.teamName || 'Tổ 1';
 
@@ -329,7 +330,7 @@ export const HistoryAnalyticsPage: React.FC<HistoryAnalyticsPageProps> = ({ onSe
                   >
                     Xem hồ sơ
                   </button>
-                  {!isTeamLeader && (
+                  {isTeacher && (
                     <button
                       onClick={() => removeEvent(ev)}
                       title="Xóa sự kiện này (Chỉ GVCN)"

@@ -334,6 +334,96 @@ export async function getTeamLeaderPasscode(classId: string, teamName: string): 
   return passcodes[teamName] || '1234';
 }
 
+// --- GVCN Passcode Management ---
+export async function getGvcnPasscode(classId: string): Promise<string> {
+  try {
+    const classDoc = await getDoc(doc(db, 'classes', classId));
+    if (classDoc.exists()) {
+      const data = classDoc.data() as ClassInfo;
+      if (data.gvcnPasscode) {
+        return data.gvcnPasscode.trim();
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      const cached = localStorage.getItem(`gvcn_passcode_${classId}`);
+      if (cached) return cached.trim();
+    }
+  } catch (err) {
+    console.warn('Error getting GVCN passcode:', err);
+    if (typeof localStorage !== 'undefined') {
+      const cached = localStorage.getItem(`gvcn_passcode_${classId}`);
+      if (cached) return cached.trim();
+    }
+  }
+  return '1234';
+}
+
+export async function saveGvcnPasscode(classId: string, passcode: string): Promise<void> {
+  const clean = passcode.trim() || '1234';
+  try {
+    const classRef = doc(db, 'classes', classId);
+    await setDoc(classRef, { gvcnPasscode: clean }, { merge: true });
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`gvcn_passcode_${classId}`, clean);
+    }
+  } catch (err) {
+    console.warn('Error saving GVCN passcode:', err);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`gvcn_passcode_${classId}`, clean);
+    }
+  }
+}
+
+// --- Cadre (Ban cán sự lớp) Passcodes Management ---
+export async function getCadrePasscodes(classId: string): Promise<Record<string, string>> {
+  const result: Record<string, string> = {
+    lop_truong: '1234',
+    lop_pho_hoc_tap: '1234',
+    lop_pho_lao_dong: '1234',
+    lop_pho_trat_tu: '1234',
+    bi_thu: '1234',
+    pho_bi_thu: '1234',
+    cadre_general: '1234'
+  };
+
+  try {
+    const classDoc = await getDoc(doc(db, 'classes', classId));
+    if (classDoc.exists()) {
+      const data = classDoc.data() as ClassInfo;
+      if (data.cadrePasscodes) {
+        Object.assign(result, data.cadrePasscodes);
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${classId}`) || '{}');
+      Object.assign(result, cached);
+    }
+  } catch (err) {
+    console.warn('Error getting cadre passcodes:', err);
+    if (typeof localStorage !== 'undefined') {
+      const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${classId}`) || '{}');
+      Object.assign(result, cached);
+    }
+  }
+
+  return result;
+}
+
+export async function saveCadrePasscodes(classId: string, passcodes: Record<string, string>): Promise<void> {
+  try {
+    const classRef = doc(db, 'classes', classId);
+    await setDoc(classRef, { cadrePasscodes: passcodes }, { merge: true });
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(passcodes));
+    }
+  } catch (err) {
+    console.warn('Error saving cadre passcodes:', err);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(passcodes));
+    }
+  }
+}
+
 // --- Criteria ---
 export async function getClassCriteria(classId: string): Promise<Criterion[]> {
   try {

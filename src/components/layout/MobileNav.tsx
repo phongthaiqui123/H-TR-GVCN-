@@ -4,9 +4,12 @@ import {
   Users, 
   Zap, 
   Bot, 
-  Menu
+  Menu,
+  Trophy,
+  FileText
 } from 'lucide-react';
 import { NavTab } from './Sidebar';
+import { useAuth } from '../../hooks/useAuth';
 
 interface MobileNavProps {
   activeTab: NavTab;
@@ -15,6 +18,9 @@ interface MobileNavProps {
 }
 
 export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab, onOpenMoreMenu }) => {
+  const { roleSession } = useAuth();
+  const isStudent = roleSession.category === 'thanh_vien';
+
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 py-1 shadow-lg">
       <div className="grid grid-cols-5 gap-1 items-center max-w-md mx-auto">
@@ -40,33 +46,57 @@ export const MobileNav: React.FC<MobileNavProps> = ({ activeTab, onSelectTab, on
           <span className="text-[10px] mt-0.5">Học sinh</span>
         </button>
 
-        {/* 3. Center Quick Action: Chấm điểm */}
-        <button
-          onClick={() => onSelectTab('grading')}
-          className="flex flex-col items-center justify-center -mt-5 cursor-pointer group"
-        >
-          <div className="w-12 h-12 rounded-2xl bg-indigo-600 group-hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 border-2 border-white transition-all transform group-active:scale-95">
-            <Zap className="w-6 h-6 fill-white text-white" />
-          </div>
-          <span className="text-[10px] font-bold text-indigo-700 mt-1">Chấm điểm</span>
-        </button>
+        {/* 3. Center Quick Action: Xếp hạng (học sinh) hoặc Chấm điểm (giáo viên/cán sự) */}
+        {isStudent ? (
+          <button
+            onClick={() => onSelectTab('rankings')}
+            className="flex flex-col items-center justify-center -mt-5 cursor-pointer group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-amber-500 group-hover:bg-amber-600 text-white flex items-center justify-center shadow-lg shadow-amber-500/30 border-2 border-white transition-all transform group-active:scale-95">
+              <Trophy className="w-6 h-6 fill-white text-white" />
+            </div>
+            <span className="text-[10px] font-bold text-amber-700 mt-1">Xếp hạng</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => onSelectTab('grading')}
+            className="flex flex-col items-center justify-center -mt-5 cursor-pointer group"
+          >
+            <div className="w-12 h-12 rounded-2xl bg-indigo-600 group-hover:bg-indigo-700 text-white flex items-center justify-center shadow-lg shadow-indigo-600/30 border-2 border-white transition-all transform group-active:scale-95">
+              <Zap className="w-6 h-6 fill-white text-white" />
+            </div>
+            <span className="text-[10px] font-bold text-indigo-700 mt-1">Chấm điểm</span>
+          </button>
+        )}
 
-        {/* 4. AI Assistant */}
-        <button
-          onClick={() => onSelectTab('ai-assistant')}
-          className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors cursor-pointer ${
-            activeTab === 'ai-assistant' ? 'text-indigo-600 font-bold' : 'text-slate-500'
-          }`}
-        >
-          <Bot className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Trợ lý AI</span>
-        </button>
+        {/* 4. Tab 4: Nhận xét BCS (học sinh) hoặc Trợ lý AI (giáo viên/cán sự) */}
+        {isStudent ? (
+          <button
+            onClick={() => onSelectTab('cadre-review')}
+            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors cursor-pointer ${
+              activeTab === 'cadre-review' ? 'text-indigo-600 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <FileText className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">Nhận xét</span>
+          </button>
+        ) : (
+          <button
+            onClick={() => onSelectTab('ai-assistant')}
+            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors cursor-pointer ${
+              activeTab === 'ai-assistant' ? 'text-indigo-600 font-bold' : 'text-slate-500'
+            }`}
+          >
+            <Bot className="w-5 h-5" />
+            <span className="text-[10px] mt-0.5">Trợ lý AI</span>
+          </button>
+        )}
 
         {/* 5. Menu */}
         <button
           onClick={onOpenMoreMenu}
           className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors cursor-pointer ${
-            ['rankings', 'history', 'reports', 'settings'].includes(activeTab) 
+            ['rankings', 'history', 'reports', 'settings', 'cadre-review'].includes(activeTab) 
               ? 'text-indigo-600 font-bold' 
               : 'text-slate-500'
           }`}

@@ -15,6 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { useClassData } from '../../hooks/useClassData';
+import { useAuth } from '../../hooks/useAuth';
 
 interface DailySummaryModalProps {
   isOpen: boolean;

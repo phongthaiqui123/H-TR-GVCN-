@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Plus,
   FileSpreadsheet,
-  UserCheck
+  UserCheck,
+  FileText
 } from 'lucide-react';
 import { NavTab } from '../components/layout/Sidebar';
 import { EditTeacherNameModal } from '../components/modals/EditTeacherNameModal';
@@ -190,6 +191,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
   const { roleSession } = useAuth();
   const isTeamLeader = roleSession.category === 'to_truong';
+  const isStudent = roleSession.category === 'thanh_vien';
   const teamName = roleSession.teamName || 'Tổ 1';
 
   // Team-scoped calculations for Team Leader
@@ -498,33 +500,40 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           </div>
           <div className="flex items-center flex-wrap gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              {getGreeting()}, {teacherName} 👋
+              {getGreeting()}, {isStudent ? (roleSession.studentName || 'Học sinh') : teacherName} 👋
             </h1>
-            <button
-              id="btn-dash-edit-teacher-name"
-              onClick={() => setIsEditTeacherModalOpen(true)}
-              title="Đổi tên Giáo viên chủ nhiệm"
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-indigo-100 hover:text-white border border-white/10 transition-all cursor-pointer shadow-xs"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>Đổi tên GVCN</span>
-            </button>
+            {!isStudent && (
+              <button
+                id="btn-dash-edit-teacher-name"
+                onClick={() => setIsEditTeacherModalOpen(true)}
+                title="Đổi tên Giáo viên chủ nhiệm"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold bg-white/15 hover:bg-white/25 text-indigo-100 hover:text-white border border-white/10 transition-all cursor-pointer shadow-xs"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Đổi tên GVCN</span>
+              </button>
+            )}
           </div>
           <p className="text-sm text-slate-300 mt-1">
-            {currentClass?.schoolName ? `${currentClass.schoolName} • ` : ''}Tình hình lớp <strong>{currentClass?.className || 'của Thầy/Cô'}</strong> hôm nay. Chúc thầy/cô một ngày giảng dạy tràn đầy năng lượng!
+            {isStudent 
+              ? `Học sinh lớp ${currentClass?.className || ''}. Chúc bạn một ngày học tập hứng khởi, nỗ lực và đạt nhiều điểm tốt!`
+              : `${currentClass?.schoolName ? `${currentClass.schoolName} • ` : ''}Tình hình lớp <strong>${currentClass?.className || 'của Thầy/Cô'}</strong> hôm nay. Chúc thầy/cô một ngày giảng dạy tràn đầy năng lượng!`
+            }
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            id="btn-dash-quick-grade"
-            onClick={() => onNavigate('grading')}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
-          >
-            <Zap className="w-4 h-4 fill-white text-white" />
-            <span>Chấm điểm ngay</span>
-          </button>
-        </div>
+        {!isStudent && (
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              id="btn-dash-quick-grade"
+              onClick={() => onNavigate('grading')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+            >
+              <Zap className="w-4 h-4 fill-white text-white" />
+              <span>Chấm điểm ngay</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Demo Mode Notice Banner */}
@@ -534,12 +543,14 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
             <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
             <span>Bạn đang xem dữ liệu mẫu ({currentClass?.className}). Thao tác tại đây không ảnh hưởng đến lớp học thực tế.</span>
           </div>
-          <button 
-            onClick={() => setIsCreateClassModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 cursor-pointer shadow-xs transition-colors"
-          >
-            Khởi tạo lớp thật
-          </button>
+          {!isStudent && (
+            <button 
+              onClick={() => setIsCreateClassModalOpen(true)}
+              className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold shrink-0 cursor-pointer shadow-xs transition-colors"
+            >
+              Khởi tạo lớp thật
+            </button>
+          )}
         </div>
       )}
 
@@ -552,18 +563,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
           <div className="space-y-1">
             <h4 className="font-bold text-slate-800 text-sm">Lớp học chưa có danh sách học sinh</h4>
             <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Để bắt đầu chấm điểm và tính điểm thi đua, Thầy/Cô hãy nhập danh sách học sinh từ file Excel hoặc thêm từng học sinh.
+              {isStudent 
+                ? 'Danh sách học sinh đang được Giáo viên chủ nhiệm cập nhật. Vui lòng quay lại sau.'
+                : 'Để bắt đầu chấm điểm và tính điểm thi đua, Thầy/Cô hãy nhập danh sách học sinh từ file Excel hoặc thêm từng học sinh.'
+              }
             </p>
           </div>
-          <div className="flex items-center justify-center gap-3 pt-1">
-            <button
-              onClick={() => onNavigate('students')}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-xs transition-colors"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>Nhập học sinh từ Excel</span>
-            </button>
-          </div>
+          {!isStudent && (
+            <div className="flex items-center justify-center gap-3 pt-1">
+              <button
+                onClick={() => onNavigate('students')}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer shadow-xs transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Nhập học sinh từ Excel</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -632,130 +648,186 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
       {/* 3. THAO TÁC NHANH (QUICK ACTIONS) */}
       <div className="space-y-2.5">
         <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 px-1">
-          Thao tác nhanh
+          {isStudent ? 'Khám phá & Tra cứu' : 'Thao tác nhanh'}
         </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* Action 1: Chấm điểm */}
-          <button
-            onClick={() => onNavigate('grading')}
-            className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
-              <Zap className="w-5 h-5 fill-white text-white" />
-            </div>
-            <span className="font-bold text-sm text-slate-900 block">Chấm điểm</span>
-            <span className="text-[11px] text-slate-500 mt-0.5">Chấm 1-chạm hoặc nhiều em</span>
-          </button>
+          {isStudent ? (
+            <>
+              {/* Student Action 1: Xếp hạng thi đua */}
+              <button
+                onClick={() => onNavigate('rankings')}
+                className="p-4 rounded-3xl bg-white hover:bg-amber-50/60 border border-slate-200 hover:border-amber-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <Trophy className="w-5 h-5 fill-white text-white" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Bảng xếp hạng</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Top thi đua cá nhân & theo tổ</span>
+              </button>
 
-          {/* Action 2: Thêm học sinh */}
-          <button
-            onClick={() => onNavigate('students')}
-            className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
-              <UserPlus className="w-5 h-5" />
-            </div>
-            <span className="font-bold text-sm text-slate-900 block">Học sinh</span>
-            <span className="text-[11px] text-slate-500 mt-0.5">Danh sách, hồ sơ & khen thưởng</span>
-          </button>
+              {/* Student Action 2: Danh sách lớp */}
+              <button
+                onClick={() => onNavigate('students')}
+                className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <Users className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Danh sách lớp</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Xem thành viên & bạn bè</span>
+              </button>
 
-          {/* Action 3: Xem xếp hạng */}
-          <button
-            onClick={() => onNavigate('rankings')}
-            className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
-              <Trophy className="w-5 h-5 fill-white text-white" />
-            </div>
-            <span className="font-bold text-sm text-slate-900 block">Xem xếp hạng</span>
-            <span className="text-[11px] text-slate-500 mt-0.5">Bảng vàng cá nhân & theo tổ</span>
-          </button>
+              {/* Student Action 3: Nhận xét BCS */}
+              <button
+                onClick={() => onNavigate('cadre-review')}
+                className="p-4 rounded-3xl bg-white hover:bg-teal-50/60 border border-slate-200 hover:border-teal-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Nhận xét tuần</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Đánh giá của Ban cán sự</span>
+              </button>
 
-          {/* Action 4: Hỏi AI */}
-          <button
-            onClick={() => onNavigate('ai-assistant')}
-            className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
-          >
-            <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
-              <Bot className="w-5 h-5" />
-            </div>
-            <span className="font-bold text-sm text-slate-900 block">Hỏi AI</span>
-            <span className="text-[11px] text-slate-500 mt-0.5">Tư vấn tình huống sư phạm</span>
-          </button>
+              {/* Student Action 4: Lịch sử thi đua */}
+              <button
+                onClick={() => onNavigate('history')}
+                className="p-4 rounded-3xl bg-white hover:bg-purple-50/60 border border-slate-200 hover:border-purple-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <BarChart3 className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Lịch sử thi đua</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Biểu đồ điểm qua các tuần</span>
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Action 1: Chấm điểm */}
+              <button
+                onClick={() => onNavigate('grading')}
+                className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <Zap className="w-5 h-5 fill-white text-white" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Chấm điểm</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Chấm 1-chạm hoặc nhiều em</span>
+              </button>
+
+              {/* Action 2: Thêm học sinh */}
+              <button
+                onClick={() => onNavigate('students')}
+                className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Học sinh</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Danh sách, hồ sơ & khen thưởng</span>
+              </button>
+
+              {/* Action 3: Xem xếp hạng */}
+              <button
+                onClick={() => onNavigate('rankings')}
+                className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <Trophy className="w-5 h-5 fill-white text-white" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Xem xếp hạng</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Bảng vàng cá nhân & theo tổ</span>
+              </button>
+
+              {/* Action 4: Hỏi AI */}
+              <button
+                onClick={() => onNavigate('ai-assistant')}
+                className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <Bot className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block">Hỏi AI</span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Tư vấn tình huống sư phạm</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* 4. AI TRỢ LÝ GVCN CARD (Prominent Smart Assistant Feature) */}
-      <div className="bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/50 p-5 sm:p-6 rounded-3xl border border-violet-200/80 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-violet-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-xs">
-              <Bot className="w-5 h-5" />
+      {/* 4. AI TRỢ LÝ GVCN CARD (Chỉ GVCN và Ban cán sự) */}
+      {!isStudent && (
+        <div className="bg-gradient-to-br from-violet-50/80 via-white to-indigo-50/50 p-5 sm:p-6 rounded-3xl border border-violet-200/80 shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-violet-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-violet-600 text-white flex items-center justify-center shadow-xs">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-1.5">
+                  AI TRỢ LÝ GVCN
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold">
+                    TUẦN {selectedWeek}
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-600">
+                  Tuần này AI phát hiện 4 điểm đáng chú ý từ dữ liệu thi đua của lớp:
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-bold text-base text-slate-900 flex items-center gap-1.5">
-                AI TRỢ LÝ GVCN
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold">
-                  TUẦN {selectedWeek}
-                </span>
-              </h3>
-              <p className="text-xs text-slate-600">
-                Tuần này AI phát hiện 4 điểm đáng chú ý từ dữ liệu thi đua của lớp:
-              </p>
-            </div>
+
+            <button
+              onClick={() => onNavigate('ai-assistant')}
+              className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Xem phân tích chi tiết</span>
+            </button>
           </div>
 
-          <button
-            onClick={() => onNavigate('ai-assistant')}
-            className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Xem phân tích chi tiết</span>
-          </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+            <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
+                📈
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">8 học sinh tiến bộ</div>
+                <div className="text-[11px] text-slate-500">Tăng điểm so với tuần trước</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
+                ⚠️
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">3 học sinh giảm điểm</div>
+                <div className="text-[11px] text-slate-500">Cần nhắc nhở riêng giờ SHL</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
+                🕐
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">Đi học muộn tăng 12%</div>
+                <div className="text-[11px] text-slate-500">Tập trung nhiều ở Tổ 3</div>
+              </div>
+            </div>
+
+            <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
+                🏆
+              </div>
+              <div>
+                <div className="text-xs font-bold text-slate-900">Tổ 2 tiến bộ mạnh nhất</div>
+                <div className="text-[11px] text-slate-500">Dẫn đầu bảng thi đua tuần</div>
+              </div>
+            </div>
+          </div>
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-          <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold shrink-0">
-              📈
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">8 học sinh tiến bộ</div>
-              <div className="text-[11px] text-slate-500">Tăng điểm so với tuần trước</div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold shrink-0">
-              ⚠️
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">3 học sinh giảm điểm</div>
-              <div className="text-[11px] text-slate-500">Cần nhắc nhở riêng giờ SHL</div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shrink-0">
-              🕐
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">Đi học muộn tăng 12%</div>
-              <div className="text-[11px] text-slate-500">Tập trung nhiều ở Tổ 3</div>
-            </div>
-          </div>
-
-          <div className="p-3 bg-white/90 rounded-2xl border border-violet-100/80 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold shrink-0">
-              🏆
-            </div>
-            <div>
-              <div className="text-xs font-bold text-slate-900">Tổ 2 tiến bộ mạnh nhất</div>
-              <div className="text-[11px] text-slate-500">Dẫn đầu bảng thi đua tuần</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* 5. MAIN SECTION: 2 COLUMNS */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1005,21 +1077,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
 
       </div>
 
-      <EditTeacherNameModal
-        isOpen={isEditTeacherModalOpen}
-        onClose={() => setIsEditTeacherModalOpen(false)}
-      />
+      {!isStudent && (
+        <>
+          <EditTeacherNameModal
+            isOpen={isEditTeacherModalOpen}
+            onClose={() => setIsEditTeacherModalOpen(false)}
+          />
 
-      <CreateRealClassWizardModal
-        isOpen={isCreateClassModalOpen}
-        onClose={() => setIsCreateClassModalOpen(false)}
-        onSuccess={(targetTab) => {
-          setIsCreateClassModalOpen(false);
-          if (targetTab && onNavigate) {
-            onNavigate(targetTab as NavTab);
-          }
-        }}
-      />
+          <CreateRealClassWizardModal
+            isOpen={isCreateClassModalOpen}
+            onClose={() => setIsCreateClassModalOpen(false)}
+            onSuccess={(targetTab) => {
+              setIsCreateClassModalOpen(false);
+              if (targetTab && onNavigate) {
+                onNavigate(targetTab as NavTab);
+              }
+            }}
+          />
+        </>
+      )}
     </div>
   );
 };

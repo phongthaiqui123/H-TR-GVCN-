@@ -19,6 +19,7 @@ import {
   RotateCcw
 } from 'lucide-react';
 import { ClassCadreRole, TeamRole, Student } from '../../types';
+import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../ui/Toast';
 
 interface CadreAssignmentModalProps {
@@ -27,7 +28,18 @@ interface CadreAssignmentModalProps {
 }
 
 export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOpen, onClose }) => {
-  const { students, teams, currentClass, batchAssignRoles, teamPasscodes } = useClassData();
+  const { roleSession } = useAuth();
+  const { 
+    students, 
+    teams, 
+    currentClass, 
+    batchAssignRoles, 
+    teamPasscodes,
+    gvcnPasscode,
+    updateGvcnPasscode,
+    cadrePasscodes,
+    updateCadrePasscodes
+  } = useClassData();
   const { showToast } = useToast();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -39,6 +51,10 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
   const [lopPhoTratTu, setLopPhoTratTu] = useState('');
   const [biThu, setBiThu] = useState('');
   const [phoBiThu, setPhoBiThu] = useState('');
+
+  // Passcodes
+  const [gvcnPasscodeState, setGvcnPasscodeState] = useState('1234');
+  const [cadrePasscodeState, setCadrePasscodeState] = useState('1234');
 
   // Team leaders & passcodes
   const [toTruong1, setToTruong1] = useState('');
@@ -77,13 +93,21 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
       setToTruong4(findTeamLeader('Tổ 4'));
       setToTruong5(findTeamLeader('Tổ 5'));
 
+      setGvcnPasscodeState(gvcnPasscode || '1234');
+      setCadrePasscodeState(cadrePasscodes?.cadre_general || cadrePasscodes?.lop_truong || '1234');
+
       setPasscode1(teamPasscodes['Tổ 1'] || '1234');
       setPasscode2(teamPasscodes['Tổ 2'] || '1234');
       setPasscode3(teamPasscodes['Tổ 3'] || '1234');
       setPasscode4(teamPasscodes['Tổ 4'] || '1234');
       setPasscode5(teamPasscodes['Tổ 5'] || '1234');
     }
-  }, [isOpen, students, teamPasscodes]);
+  }, [isOpen, students, teamPasscodes, gvcnPasscode, cadrePasscodes]);
+
+  // Security guard: Only GVCN can view / edit passcodes & assignments
+  if (roleSession.category !== 'gvcn') {
+    return null;
+  }
 
   const generateRandomPin = () => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -96,17 +120,30 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
     };
 
     const text = [
-      `🔐 DANH SÁCH MÃ PASS CODE ĐĂNG NHẬP TỔ TRƯỞNG - ${currentClass?.className || 'LỚP HỌC'}:`,
+      `🔐 DANH SÁCH MÃ PASSCODE ĐĂNG NHẬP - ${currentClass?.className || 'LỚP HỌC'}:`,
+      ``,
+      `👨‍🏫 GIÁO VIÊN CHỦ NHIỆM (Bảo mật riêng):`,
+      `• Passcode GVCN: ${gvcnPasscodeState}`,
+      ``,
+      `👑 BAN CÁN SỰ LỚP (Nhập nhận xét tuần):`,
+      `• Passcode Ban cán sự: ${cadrePasscodeState}`,
+      ``,
+      `🎖️ TỔ TRƯỞNG CÁC TỔ (Chấm thi đua):`,
       `• Tổ 1: ${passcode1} (Tổ trưởng: ${getName(toTruong1, 'Chưa chỉ định')})`,
       `• Tổ 2: ${passcode2} (Tổ trưởng: ${getName(toTruong2, 'Chưa chỉ định')})`,
       `• Tổ 3: ${passcode3} (Tổ trưởng: ${getName(toTruong3, 'Chưa chỉ định')})`,
       `• Tổ 4: ${passcode4} (Tổ trưởng: ${getName(toTruong4, 'Chưa chỉ định')})`,
       hasTeam5 ? `• Tổ 5: ${passcode5} (Tổ trưởng: ${getName(toTruong5, 'Chưa chỉ định')})` : '',
-      `\n💡 Tổ trưởng đăng nhập chọn chức vụ "Tổ trưởng", chọn đúng Tổ và nhập mã Pass code trên để được chấm điểm thi đua.`
+      ``,
+      `💡 HƯỚNG DẪN ĐĂNG NHẬP:`,
+      `- GVCN: Chọn chức vụ "GVCN lớp" và nhập Passcode GVCN`,
+      `- Ban cán sự: Chọn "Ban cán sự", chọn chức vụ và nhập Passcode để vào nhập nhận xét`,
+      `- Tổ trưởng: Chọn "Tổ trưởng", chọn đúng Tổ và nhập Passcode để chấm điểm`,
+      `- Học sinh: Chọn "Học sinh" để xem điểm & bảng xếp hạng (không cần mật khẩu)`
     ].filter(Boolean).join('\n');
 
     navigator.clipboard.writeText(text);
-    showToast('Đã sao chép danh sách Pass code Tổ trưởng để gửi cho học sinh!', 'success');
+    showToast('Đã sao chép danh sách Passcode (GVCN, Ban cán sự, Tổ trưởng)!', 'success');
   };
 
   const studentsByTeam = (teamName: string) => 
@@ -158,7 +195,22 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
 
       await batchAssignRoles(updates, passcodesMap);
 
-      showToast('Đã lưu phân quyền Ban Cán sự Lớp & Pass code Tổ Trưởng thành công!', 'success');
+      // Save GVCN Passcode
+      await updateGvcnPasscode(gvcnPasscodeState.trim() || '1234');
+
+      // Save Cadre Passcodes
+      const cleanCadrePin = cadrePasscodeState.trim() || '1234';
+      await updateCadrePasscodes({
+        cadre_general: cleanCadrePin,
+        lop_truong: cleanCadrePin,
+        lop_pho_hoc_tap: cleanCadrePin,
+        lop_pho_lao_dong: cleanCadrePin,
+        lop_pho_trat_tu: cleanCadrePin,
+        bi_thu: cleanCadrePin,
+        pho_bi_thu: cleanCadrePin
+      });
+
+      showToast('Đã lưu phân quyền & mã Passcode (GVCN, Ban cán sự, Tổ trưởng) thành công!', 'success');
       onClose();
     } catch (err) {
       console.error('Error saving cadre roles:', err);
@@ -321,6 +373,37 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
                 ))}
               </select>
               <p className="text-[10px] text-slate-500 mt-1">Hỗ trợ các hoạt động văn thể mỹ, phong trào</p>
+            </div>
+
+            {/* Passcode Ban cán sự lớp */}
+            <div className="sm:col-span-2 p-3 rounded-xl border border-sky-300 bg-sky-50/50 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="flex items-center gap-1.5 font-bold text-sky-950 text-xs">
+                  <KeyRound className="w-4 h-4 text-sky-600" />
+                  <span>Passcode Ban cán sự lớp (để nhập nhận xét nề nếp tuần):</span>
+                </label>
+                <p className="text-[11px] text-sky-800/80 mt-0.5">
+                  Ban cán sự nhập mã này để vào trang "Nhận xét của Ban cán sự lớp" ghi nhận nề nếp tuần
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="text"
+                  value={cadrePasscodeState}
+                  onChange={(e) => setCadrePasscodeState(e.target.value)}
+                  placeholder="1234"
+                  maxLength={12}
+                  className="w-28 px-2.5 py-1.5 bg-white border border-sky-300 rounded-lg text-xs font-mono font-bold tracking-wider text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/30"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCadrePasscodeState(generateRandomPin())}
+                  className="inline-flex items-center gap-1 text-[11px] text-sky-700 hover:text-sky-950 font-semibold underline cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Ngẫu nhiên</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -627,6 +710,44 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
                 </div>
               </div>
             )}
+          </div>
+        </div>
+
+        {/* SECTION 3: PASSCODE BẢO VỆ GIÁO VIÊN CHỦ NHIỆM */}
+        <div className="p-3.5 rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 space-y-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-indigo-600" />
+              <h3 className="font-black text-indigo-950 uppercase tracking-wider text-xs">
+                3. Passcode Bảo Mật Tài Khoản GVCN
+              </h3>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
+              Bảo mật riêng Thầy/Cô
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <p className="text-[11px] text-indigo-900/80 leading-relaxed">
+              Mật mã bắt buộc khi Thầy/Cô đăng nhập vào vai trò Giáo viên chủ nhiệm để bảo vệ quyền quản trị lớp học, tránh học sinh tự ý truy cập.
+            </p>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="text"
+                value={gvcnPasscodeState}
+                onChange={(e) => setGvcnPasscodeState(e.target.value)}
+                placeholder="1234"
+                maxLength={15}
+                className="w-32 px-2.5 py-1.5 bg-white border border-indigo-300 rounded-lg text-xs font-mono font-bold tracking-wider text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              />
+              <button
+                type="button"
+                onClick={() => setGvcnPasscodeState(generateRandomPin())}
+                className="inline-flex items-center gap-1 text-[11px] text-indigo-700 hover:text-indigo-950 font-semibold underline cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Ngẫu nhiên</span>
+              </button>
+            </div>
           </div>
         </div>
 

@@ -51,6 +51,8 @@ import {
   saveTeams,
   saveTeamPasscode,
   updateClassTeamPasscodes,
+  saveGvcnPasscode,
+  saveCadrePasscodes,
   getClassStudentAccounts,
   saveStudentAccount,
   batchSaveStudentAccounts,
@@ -132,6 +134,10 @@ interface ClassDataContextType {
   teamPasscodes: Record<string, string>;
   updateTeamPasscode: (teamName: string, passcode: string) => Promise<void>;
   batchUpdateTeamPasscodes: (passcodes: Record<string, string>) => Promise<void>;
+  gvcnPasscode: string;
+  updateGvcnPasscode: (passcode: string) => Promise<void>;
+  cadrePasscodes: Record<string, string>;
+  updateCadrePasscodes: (passcodes: Record<string, string>) => Promise<void>;
   updateCriteriaList: (list: Criterion[]) => Promise<void>;
   updateCriterion: (crit: Criterion) => Promise<void>;
   reorderCriterion: (criterionId: string, targetOrder: number) => Promise<void>;
@@ -872,6 +878,56 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       ...prev,
       teamLeaderPasscodes: {
         ...(prev.teamLeaderPasscodes || {}),
+        ...passcodes
+      }
+    } : null);
+  };
+
+  const gvcnPasscode = useMemo<string>(() => {
+    if (currentClass?.gvcnPasscode) return currentClass.gvcnPasscode.trim();
+    if (typeof localStorage !== 'undefined' && currentClass?.classId) {
+      const cached = localStorage.getItem(`gvcn_passcode_${currentClass.classId}`);
+      if (cached) return cached.trim();
+    }
+    return '1234';
+  }, [currentClass]);
+
+  const updateGvcnPasscode = async (passcode: string) => {
+    if (!currentClass) return;
+    const clean = passcode.trim() || '1234';
+    await saveGvcnPasscode(currentClass.classId, clean);
+    setCurrentClass(prev => prev ? { ...prev, gvcnPasscode: clean } : null);
+  };
+
+  const cadrePasscodes = useMemo<Record<string, string>>(() => {
+    const result: Record<string, string> = {
+      lop_truong: '1234',
+      lop_pho_hoc_tap: '1234',
+      lop_pho_lao_dong: '1234',
+      lop_pho_trat_tu: '1234',
+      bi_thu: '1234',
+      pho_bi_thu: '1234',
+      cadre_general: '1234'
+    };
+    if (currentClass?.cadrePasscodes) {
+      Object.assign(result, currentClass.cadrePasscodes);
+    }
+    if (typeof localStorage !== 'undefined' && currentClass?.classId) {
+      try {
+        const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${currentClass.classId}`) || '{}');
+        Object.assign(result, cached);
+      } catch {}
+    }
+    return result;
+  }, [currentClass]);
+
+  const updateCadrePasscodes = async (passcodes: Record<string, string>) => {
+    if (!currentClass) return;
+    await saveCadrePasscodes(currentClass.classId, passcodes);
+    setCurrentClass(prev => prev ? {
+      ...prev,
+      cadrePasscodes: {
+        ...(prev.cadrePasscodes || {}),
         ...passcodes
       }
     } : null);
@@ -1843,6 +1899,10 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       teamPasscodes,
       updateTeamPasscode,
       batchUpdateTeamPasscodes,
+      gvcnPasscode,
+      updateGvcnPasscode,
+      cadrePasscodes,
+      updateCadrePasscodes,
       updateCriteriaList,
       updateClassConfig,
       updateCriterion,

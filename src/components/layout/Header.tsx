@@ -49,10 +49,12 @@ import { getUnifiedAcademicTimeInfo } from '../../utils/academicTime';
 interface HeaderProps {
   onOpenClassModal?: () => void;
   onNavigateTab?: (tab: string) => void;
+  onSelectStudent?: (studentId: string) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }) => {
   const { profile, logout, appRole, roleSession, switchRole } = useAuth();
+  const isStudent = roleSession.category === 'thanh_vien';
   const { 
     classes, 
     filteredClasses,
@@ -206,16 +208,18 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
                 <div className="absolute left-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-30 animate-in fade-in slide-in-from-top-2">
                   <div className="px-3.5 py-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                     <span>Danh sách lớp ({classes.length})</span>
-                    <button
-                      onClick={() => {
-                        setShowClassDropdown(false);
-                        setIsCreateRealClassModalOpen(true);
-                      }}
-                      className="text-emerald-700 hover:text-emerald-800 text-xs font-bold cursor-pointer flex items-center gap-1"
-                    >
-                      <Plus className="w-3 h-3" />
-                      Tạo lớp thật
-                    </button>
+                    {appRole === 'gvcn' && (
+                      <button
+                        onClick={() => {
+                          setShowClassDropdown(false);
+                          setIsCreateRealClassModalOpen(true);
+                        }}
+                        className="text-emerald-700 hover:text-emerald-800 text-xs font-bold cursor-pointer flex items-center gap-1"
+                      >
+                        <Plus className="w-3 h-3" />
+                        Tạo lớp thật
+                      </button>
+                    )}
                   </div>
                   
                   {/* Mode Filter Selector */}
@@ -414,25 +418,29 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
 
         {/* Right: Week selector, Notification Center, User Profile */}
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* Sổ ghi nhận nhanh */}
-          <button
-            onClick={() => setIsQuickObservationModalOpen(true)}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700 text-xs font-bold transition-all cursor-pointer shadow-xs"
-            title="Sổ Ghi Nhận Nhanh Học Sinh"
-          >
-            <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Sổ ghi nhận</span>
-          </button>
+          {/* Sổ ghi nhận nhanh - chỉ GVCN và Ban cán sự / Tổ trưởng */}
+          {!isStudent && (
+            <button
+              onClick={() => setIsQuickObservationModalOpen(true)}
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200/70 text-indigo-700 text-xs font-bold transition-all cursor-pointer shadow-xs"
+              title="Sổ Ghi Nhận Nhanh Học Sinh"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Sổ ghi nhận</span>
+            </button>
+          )}
 
-          {/* Tổng kết cuối ngày */}
-          <button
-            onClick={() => setIsDailySummaryModalOpen(true)}
-            className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200/70 text-amber-800 text-xs font-bold transition-all cursor-pointer shadow-xs"
-            title="Tổng Hợp Nhanh Cuối Ngày Bằng AI"
-          >
-            <Clock className="w-3.5 h-3.5 text-amber-600" />
-            <span>Tổng kết ngày</span>
-          </button>
+          {/* Tổng kết cuối ngày - chỉ GVCN */}
+          {appRole === 'gvcn' && (
+            <button
+              onClick={() => setIsDailySummaryModalOpen(true)}
+              className="hidden lg:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50/80 hover:bg-amber-100 border border-amber-200/70 text-amber-800 text-xs font-bold transition-all cursor-pointer shadow-xs"
+              title="Tổng Hợp Nhanh Cuối Ngày Bằng AI"
+            >
+              <Clock className="w-3.5 h-3.5 text-amber-600" />
+              <span>Tổng kết ngày</span>
+            </button>
+          )}
 
           {/* Quick Search Ctrl+K */}
           <button
@@ -752,7 +760,11 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab }) => {
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         onSelectStudent={(studentId) => {
-          if (onNavigateTab) onNavigateTab('grading');
+          if (onSelectStudent) {
+            onSelectStudent(studentId);
+          } else if (onNavigateTab) {
+            onNavigateTab(isStudent ? 'students' : 'grading');
+          }
         }}
       />
 

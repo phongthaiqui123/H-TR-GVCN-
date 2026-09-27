@@ -103,7 +103,11 @@ export interface UserProfile {
   teacherId?: string;
   schoolYearId?: string;
   activeStudentId?: string;
+  googleLinked?: boolean;
+  googleEmail?: string | null;
+  googleUid?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface SchoolYear {
@@ -250,6 +254,7 @@ export interface CompetitionEvent {
   weekNumber?: number;
   date: string; // YYYY-MM-DD
   score: number; // positive or negative, e.g. +1 or -2
+  scoreChange?: number; // alias for score/penalty
   points?: number;
   type?: 'positive' | 'negative';
   title?: string;
@@ -620,6 +625,8 @@ export type AuditLogAction =
   | 'revoke_team_leader'
   | 'change_team_leader'
   | 'whole_team_score'
+  | 'real_class_deleted'
+  | 'demo_data_seeded'
   | 'UNAUTHORIZED_ACCESS_ATTEMPT';
 
 export interface AuditLog {

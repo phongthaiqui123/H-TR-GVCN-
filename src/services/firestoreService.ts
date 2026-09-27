@@ -43,6 +43,7 @@ import {
   generateDemoData, 
   generateTwoClassesDemoData, 
   generateClassDemoData, 
+  generateSingleDemoClassPackage,
   verifyDemoDataIntegrity,
   GeneratedDemoPackage 
 } from './demoData';
@@ -86,17 +87,26 @@ export async function getPrimaryClass(): Promise<ClassInfo | null> {
   try {
     const list = await getAllClasses();
     if (list.length > 0) {
-      // Prioritize the actual custom class over fallback 5A1
-      const actual = list.find(c => c.className && !c.className.includes('5A1')) 
-        || list.find(c => c.teacherName && !c.teacherName.includes('Nguyễn Mai Lan')) 
-        || list[0];
+      // 1. ABSOLUTE PRIORITY: Real class (NOT demo)!
+      // Specifically class_5A1_3loMHV (Lớp thật 11A9 của Thầy Qui Thái Phong) or any real class
+      const realClass = list.find(c => c.classId === 'class_5A1_3loMHV')
+        || list.find(c => !c.isDemo && c.status !== 'archived' && c.className && !c.className.includes('5A1'))
+        || list.find(c => !c.isDemo && c.status !== 'archived');
       
-      if (actual) {
-        // Normalize teacher name if it was old demo placeholder
-        if (!actual.teacherName || actual.teacherName.includes('Nguyễn Mai Lan')) {
-          actual.teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || 'Thầy Phong Qui';
+      if (realClass) {
+        if (!realClass.teacherName || realClass.teacherName.includes('Nguyễn Mai Lan')) {
+          realClass.teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || 'Qui Thái Phong';
         }
-        return actual;
+        return realClass;
+      }
+
+      // 2. Fallback to demo class ONLY if there are no real classes in the system
+      const fallback = list.find(c => c.status !== 'archived') || list[0];
+      if (fallback) {
+        if (!fallback.teacherName || fallback.teacherName.includes('Nguyễn Mai Lan')) {
+          fallback.teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || 'Qui Thái Phong';
+        }
+        return fallback;
       }
       return null;
     }
@@ -107,26 +117,46 @@ export async function getPrimaryClass(): Promise<ClassInfo | null> {
   }
 }
 
-export async function getTeacherClasses(teacherId: string): Promise<ClassInfo[]> {
+export async function getTeacherClasses(teacherId: string, teacherEmail?: string): Promise<ClassInfo[]> {
   try {
     const all = await getAllClasses();
-    if (all.length > 0) {
-      return all;
-    }
+    if (all.length === 0) return [];
+    if (!teacherId) return [];
 
-    const primary = await getPrimaryClass();
-    if (primary) {
-      return [primary];
-    }
-    return [];
+    // Strictly determine if current session is verified as the original account (Thầy Qui Thái Phong - phongthaiqui@gmail.com)
+    const emailToCheck = (teacherEmail || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_email') : '') || '').toLowerCase();
+    const isOriginalVerified = typeof localStorage !== 'undefined' && localStorage.getItem('gvcn_is_original_verified') === 'true';
+    const isOriginalAccount = teacherId === '3loMHVlubaMq17ltNkkjfXkRVWs2' || 
+                              emailToCheck === 'phongthaiqui@gmail.com' ||
+                              (isOriginalVerified && teacherId.includes('phong'));
+
+    // Strict multi-tenant filtering: Each teacher ONLY sees the classes belonging to their account!
+    const myClasses = all.filter(c => {
+      // 1. If it's a real class (not demo):
+      if (!c.isDemo) {
+        // Direct ownership: The teacher created this class
+        if (c.teacherId === teacherId) return true;
+
+        // The original real class 11A9 (class_5A1_3loMHV) is the school's official real class,
+        // accessible to its students, cadres, and teachers
+        if (c.classId === 'class_5A1_3loMHV') {
+          return true;
+        }
+
+        // CRITICAL: NEVER allow any other teacher to see this real class!
+        return false;
+      }
+
+      // 2. If it's a demo class:
+      // A teacher sees their own demo class
+      if (c.teacherId === teacherId) return true;
+      return false;
+    });
+
+    return myClasses;
   } catch (err) {
-    console.warn('Notice querying teacher classes, falling back to primary class:', err);
-    try {
-      const primary = await getPrimaryClass();
-      return primary ? [primary] : [];
-    } catch {
-      return [];
-    }
+    console.warn('Notice querying teacher classes:', err);
+    return [];
   }
 }
 
@@ -141,6 +171,110 @@ export async function saveClass(classInfo: ClassInfo): Promise<void> {
 
 export async function deleteClass(classId: string): Promise<void> {
   await deleteDoc(doc(db, 'classes', classId));
+}
+
+/**
+ * XÓA HOÀN TOÀN LỚP HỌC THẬT KHI CẦN THIẾT
+ * Xóa sạch toàn bộ tài liệu liên quan đến lớp thật:
+ * - Lớp học (classes)
+ * - Toàn bộ học sinh trong lớp (students)
+ * - Toàn bộ tổ thi đua (teams)
+ * - Toàn bộ tiêu chí riêng của lớp (criteria)
+ * - Toàn bộ sự kiện chấm điểm (events)
+ * - Toàn bộ điểm thi đua theo tuần (weeklyScores)
+ * - Tài khoản học sinh, ghi chú quan sát, nhận xét cán sự và snapshot tuần
+ */
+export async function deleteRealClass(
+  classId: string,
+  teacherId?: string
+): Promise<{
+  deletedStudents: number;
+  deletedTeams: number;
+  deletedCriteria: number;
+  deletedEvents: number;
+  deletedScores: number;
+}> {
+  const deleteOps: Array<{ ref: any; type: 'delete' }> = [];
+
+  // 1. Delete class document
+  const classRef = doc(db, 'classes', classId);
+  deleteOps.push({ ref: classRef, type: 'delete' });
+
+  // 2. Query and delete students
+  let deletedStudents = 0;
+  const stdSnap = await getDocs(query(collection(db, 'students'), where('classId', '==', classId)));
+  stdSnap.forEach(d => {
+    deleteOps.push({ ref: d.ref, type: 'delete' });
+    deletedStudents++;
+  });
+
+  // 3. Query and delete teams
+  let deletedTeams = 0;
+  const teamsSnap = await getDocs(query(collection(db, 'teams'), where('classId', '==', classId)));
+  teamsSnap.forEach(d => {
+    deleteOps.push({ ref: d.ref, type: 'delete' });
+    deletedTeams++;
+  });
+
+  // 4. Query and delete criteria
+  let deletedCriteria = 0;
+  const critSnap = await getDocs(query(collection(db, 'criteria'), where('classId', '==', classId)));
+  critSnap.forEach(d => {
+    deleteOps.push({ ref: d.ref, type: 'delete' });
+    deletedCriteria++;
+  });
+
+  // 5. Query and delete events
+  let deletedEvents = 0;
+  const evSnap = await getDocs(query(collection(db, 'events'), where('classId', '==', classId)));
+  evSnap.forEach(d => {
+    deleteOps.push({ ref: d.ref, type: 'delete' });
+    deletedEvents++;
+  });
+
+  // 6. Query and delete weeklyScores
+  let deletedScores = 0;
+  const scSnap = await getDocs(query(collection(db, 'weeklyScores'), where('classId', '==', classId)));
+  scSnap.forEach(d => {
+    deleteOps.push({ ref: d.ref, type: 'delete' });
+    deletedScores++;
+  });
+
+  // 7. Delete secondary collections (accounts, snapshots, reviews, observations)
+  try {
+    const accSnap = await getDocs(query(collection(db, 'student_accounts'), where('classId', '==', classId)));
+    accSnap.forEach(d => deleteOps.push({ ref: d.ref, type: 'delete' }));
+
+    const obsSnap = await getDocs(query(collection(db, 'observations'), where('classId', '==', classId)));
+    obsSnap.forEach(d => deleteOps.push({ ref: d.ref, type: 'delete' }));
+
+    const snapSnap = await getDocs(query(collection(db, 'weeklySnapshots'), where('classId', '==', classId)));
+    snapSnap.forEach(d => deleteOps.push({ ref: d.ref, type: 'delete' }));
+
+    const revSnap = await getDocs(query(collection(db, 'cadre_reviews'), where('classId', '==', classId)));
+    revSnap.forEach(d => deleteOps.push({ ref: d.ref, type: 'delete' }));
+  } catch (e) {
+    console.warn('Notice deleting secondary sub-items for real class:', e);
+  }
+
+  // 8. Execute in chunked batches
+  await commitBatchOperations(deleteOps);
+
+  await createAuditLog({
+    action: 'real_class_deleted',
+    actorId: teacherId || 'teacher',
+    actorName: teacherId || 'GVCN',
+    classId,
+    details: `Đã xóa hoàn toàn lớp thật ${classId} (${deletedStudents} học sinh, ${deletedTeams} tổ, ${deletedCriteria} tiêu chí, ${deletedScores} bản ghi điểm, ${deletedEvents} sự kiện).`
+  });
+
+  return {
+    deletedStudents,
+    deletedTeams,
+    deletedCriteria,
+    deletedEvents,
+    deletedScores,
+  };
 }
 
 // --- Students ---
@@ -838,39 +972,94 @@ export async function seedDemoDataForTeacher(
   customTeacherName?: string,
   customClassName?: string
 ): Promise<ClassInfo> {
-  const targetClass = customClassName?.includes('12A2') ? '12A2' : '12A1';
-  const data = generateClassDemoData(teacherId, targetClass, customTeacherName);
-  return await seedClassPackage(data);
+  const result = await seedSingleDemoClass(teacherId, customTeacherName);
+  return result.class1;
 }
 
 /**
- * Creates 2 demo classes: 12A1 and 12A2 (45 students each, 90 students total, 8 weeks of data)
+ * Creates 1 demo class: 12A1 (45 students, 4 teams, 14 criteria replicated from real class, 8 weeks of data)
  * Strictly verifies integrity before committing to Firestore.
+ */
+export async function seedSingleDemoClass(
+  teacherId: string,
+  teacherName?: string,
+  onProgress?: (status: string, percent: number) => void
+): Promise<{ class1: ClassInfo; class2: ClassInfo; integritySummary: string }> {
+  if (onProgress) onProgress('Đang chuẩn bị gói dữ liệu lớp mẫu (45 học sinh, 4 tổ thi đua, 14 tiêu chí chuẩn)...', 15);
+
+  // 1. Fetch real class criteria to replicate if available
+  let sourceCriteria: Criterion[] | undefined = undefined;
+  try {
+    const primary = await getPrimaryClass();
+    if (primary) {
+      const crits = await getClassCriteria(primary.classId);
+      if (crits && crits.length > 0) {
+        sourceCriteria = crits;
+      }
+    }
+  } catch (err) {
+    console.warn('Notice fetching real class criteria for demo replication:', err);
+  }
+
+  // 2. Clean up any previous demo classes for this teacher first
+  try {
+    await deleteDemoData(teacherId);
+  } catch (e) {
+    console.warn('Notice cleaning previous demo data:', e);
+  }
+
+  // 3. Generate 1 demo class package with 4 teams and 14 criteria
+  const pkg = generateSingleDemoClassPackage(teacherId, teacherName, sourceCriteria);
+
+  // 4. Integrity Check
+  if (onProgress) onProgress('Đang chạy kiểm tra toàn vẹn dữ liệu tự động (Data Integrity Check)...', 40);
+  const integrity = verifyDemoDataIntegrity(pkg);
+  if (!integrity.isHealthy) {
+    console.error('Lỗi toàn vẹn dữ liệu demo:', integrity.errors);
+    throw new Error(`Kiểm tra toàn vẹn thất bại: ${integrity.errors[0]}`);
+  }
+
+  // 5. Seed class package to Firestore
+  if (onProgress) onProgress('Đang ghi dữ liệu Lớp mẫu 12A1 (45 học sinh, 4 tổ, 8 tuần)...', 70);
+  await seedClassPackage(pkg);
+
+  if (onProgress) onProgress('Hoàn tất nạp dữ liệu lớp demo thành công!', 100);
+  return { class1: pkg.classInfo, class2: pkg.classInfo, integritySummary: integrity.summary };
+}
+
+/**
+ * Alias for backward compatibility - seeds 1 demo class with 4 teams and 14 criteria.
  */
 export async function seedTwoClassesDemoData(
   teacherId: string,
   teacherName?: string,
   onProgress?: (status: string, percent: number) => void
 ): Promise<{ class1: ClassInfo; class2: ClassInfo; integritySummary: string }> {
-  if (onProgress) onProgress('Đang khởi tạo gói dữ liệu 2 lớp mẫu (90 học sinh, 8 tuần)...', 15);
-  const [pkg1, pkg2] = generateTwoClassesDemoData(teacherId, teacherName);
+  return await seedSingleDemoClass(teacherId, teacherName, onProgress);
+}
 
-  // Integrity Check
-  if (onProgress) onProgress('Đang chạy kiểm tra toàn vẹn dữ liệu tự động (Data Integrity Check)...', 30);
-  const integrity = verifyDemoDataIntegrity(pkg1, pkg2);
-  if (!integrity.isHealthy) {
-    console.error('Lỗi toàn vẹn dữ liệu demo:', integrity.errors);
-    throw new Error(`Kiểm tra toàn vẹn thất bại: ${integrity.errors[0]}`);
+/**
+ * Đảm bảo mỗi Giáo viên khi đăng nhập đều có sẵn lớp học demo
+ * Nếu giáo viên chưa có lớp demo, tự động khởi tạo lớp demo cho giáo viên đó
+ */
+export async function ensureTeacherDemoClass(
+  teacherId: string,
+  teacherName?: string
+): Promise<ClassInfo> {
+  try {
+    const myClasses = await getTeacherClasses(teacherId);
+    const existingDemo = myClasses.find(c => c.isDemo && c.status !== 'archived');
+    if (existingDemo) {
+      return existingDemo;
+    }
+    // Auto-seed demo class for this teacher
+    const res = await seedSingleDemoClass(teacherId, teacherName);
+    return res.class1;
+  } catch (err) {
+    console.error('Error ensuring teacher demo class:', err);
+    const fallbackPkg = generateSingleDemoClassPackage(teacherId, teacherName);
+    return fallbackPkg.classInfo;
   }
-
-  if (onProgress) onProgress('Đang ghi dữ liệu Lớp 12A1 (45 học sinh, 5 tổ, 8 tuần)...', 50);
-  await seedClassPackage(pkg1);
-
-  if (onProgress) onProgress('Đang ghi dữ liệu Lớp 12A2 (45 học sinh, 5 tổ, 8 tuần)...', 80);
-  await seedClassPackage(pkg2);
-
-  if (onProgress) onProgress('Hoàn tất nạp dữ liệu demo!', 100);
-  return { class1: pkg1.classInfo, class2: pkg2.classInfo, integritySummary: integrity.summary };
 }
 
 /**

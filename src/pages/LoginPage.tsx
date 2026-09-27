@@ -22,10 +22,15 @@ import {
   BookOpen,
   Brush,
   Shield,
-  Star
+  Star,
+  Plus,
+  Search,
+  ChevronDown,
+  ArrowLeftRight
 } from 'lucide-react';
-import { AppLoginRole, Student, ClassCadreRole } from '../types';
+import { AppLoginRole, Student, ClassCadreRole, ClassInfo } from '../types';
 import { 
+  getAllClasses,
   getPrimaryClass, 
   getClassTeamPasscodes, 
   getTeamLeaderPasscode, 
@@ -37,12 +42,17 @@ import { normalizeTeamName } from '../utils/constants';
 
 export const LoginPage: React.FC = () => {
   const { 
+    user,
+    isGoogleLinked,
+    googleEmail,
     signInWithGoogle, 
     signInWithEmail, 
     signUpWithEmail, 
     signInWithSelectedRole,
+    signInAsTeacher,
     loginAsStudent,
     updateTeacherDisplayName,
+    logout,
     loading, 
     error, 
     clearError 
@@ -77,10 +87,19 @@ export const LoginPage: React.FC = () => {
   const [teamPasscode, setTeamPasscode] = useState('');
   const [showTeamPasscode, setShowTeamPasscode] = useState(false);
   const [passcodeError, setPasscodeError] = useState<string | null>(null);
-  const [primaryClassId, setPrimaryClassId] = useState<string>('primary_class');
+  const [primaryClassId, setPrimaryClassId] = useState<string>('class_5A1_3loMHV');
+  const [availableClasses, setAvailableClasses] = useState<ClassInfo[]>([]);
+  const [selectedClass, setSelectedClass] = useState<ClassInfo | null>(null);
+  const [showClassDropdown, setShowClassDropdown] = useState(false);
+  const [isClassLoading, setIsClassLoading] = useState(false);
   const [classPasscodes, setClassPasscodes] = useState<Record<string, string>>({});
   const [hasTeam5, setHasTeam5] = useState(false);
   const [classStudents, setClassStudents] = useState<Student[]>([]);
+
+  // Student selection and search state for 'thanh_vien' role
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
+  const [studentTeamFilter, setStudentTeamFilter] = useState<string>('all');
 
   // Student credential login
   const [studentUsername, setStudentUsername] = useState('');
@@ -90,53 +109,108 @@ export const LoginPage: React.FC = () => {
   const [teacherNameInput, setTeacherNameInput] = useState(() => {
     const saved = localStorage.getItem('gvcn_custom_teacher_name');
     if (saved && saved !== 'Cô Nguyễn Mai Lan') return saved;
-    return 'Thầy Phong Qui';
+    return 'Qui Thái Phong';
   });
   const [isEditingTeacherName, setIsEditingTeacherName] = useState(false);
 
-  useEffect(() => {
-    getPrimaryClass().then((cls) => {
-      if (cls) {
-        const targetId = cls.classId || cls.id || 'primary_class';
-        setPrimaryClassId(targetId);
-        if (cls.className) setClassName(cls.className);
-        if (cls.teacherName && !localStorage.getItem('gvcn_custom_teacher_name')) {
-          setTeacherNameInput(cls.teacherName);
-        }
+  const applyClass = async (cls: ClassInfo) => {
+    setSelectedClass(cls);
+    const targetId = cls.classId || cls.id || 'class_5A1_3loMHV';
+    setPrimaryClassId(targetId);
+    if (cls.className) setClassName(cls.className);
+    localStorage.setItem('gvcn_active_class_id', targetId);
 
-        // Fetch GVCN passcode
-        if (cls.gvcnPasscode) {
-          setActualGvcnPasscode(cls.gvcnPasscode.trim());
-        } else {
-          getGvcnPasscode(targetId).then(code => setActualGvcnPasscode(code.trim())).catch(console.warn);
-        }
+    if (cls.teacherName) {
+      setTeacherNameInput(cls.teacherName);
+      localStorage.setItem('gvcn_custom_teacher_name', cls.teacherName);
+    }
 
-        // Fetch Cadre passcodes
-        if (cls.cadrePasscodes) {
-          setActualCadrePasscodes(cls.cadrePasscodes);
-        } else {
-          getCadrePasscodes(targetId).then(cp => setActualCadrePasscodes(cp)).catch(console.warn);
-        }
+    setIsClassLoading(true);
 
-        // Fetch Team passcodes
-        getClassTeamPasscodes(targetId).then(passcodes => {
-          setClassPasscodes(passcodes);
-          if (passcodes['Tổ 5']) {
-            setHasTeam5(true);
-          }
-        }).catch(console.warn);
-
-        getClassStudents(targetId).then(stdList => {
-          if (stdList && stdList.length > 0) {
-            setClassStudents(stdList);
-            if (stdList.some(s => normalizeTeamName(s.teamName) === 'Tổ 5')) {
-              setHasTeam5(true);
-            }
-          }
-        }).catch(console.warn);
+    try {
+      // 1. Fetch Students of this specific class (real 11A9 or demo)
+      const stdList = await getClassStudents(targetId);
+      if (stdList && stdList.length > 0) {
+        setClassStudents(stdList);
+        setHasTeam5(stdList.some(s => normalizeTeamName(s.teamName) === 'Tổ 5'));
+      } else {
+        setClassStudents([]);
+        setHasTeam5(false);
       }
-    }).catch(console.warn);
+
+      // 2. Fetch passcodes in parallel
+      const [gvcnCode, cadreCodes, teamCodes] = await Promise.all([
+        cls.gvcnPasscode ? Promise.resolve(cls.gvcnPasscode.trim()) : getGvcnPasscode(targetId).catch(() => '8643'),
+        cls.cadrePasscodes ? Promise.resolve(cls.cadrePasscodes) : getCadrePasscodes(targetId).catch(() => ({})),
+        getClassTeamPasscodes(targetId).catch(() => ({}))
+      ]);
+
+      setActualGvcnPasscode(gvcnCode || '8643');
+      setActualCadrePasscodes(cadreCodes && Object.keys(cadreCodes).length > 0 ? cadreCodes : {
+        lop_truong: '1260',
+        lop_pho_hoc_tap: '1260',
+        lop_pho_lao_dong: '1260',
+        lop_pho_trat_tu: '1260',
+        bi_thu: '1260',
+        pho_bi_thu: '1260',
+        cadre_general: '1260'
+      });
+      setClassPasscodes(teamCodes || {});
+      if (teamCodes && teamCodes['Tổ 5']) {
+        setHasTeam5(true);
+      }
+    } catch (e) {
+      console.warn('Error loading class data in login:', e);
+    } finally {
+      setIsClassLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    async function initClasses() {
+      try {
+        const list = await getAllClasses();
+        const activeList = list.filter(c => c.status !== 'archived');
+        setAvailableClasses(activeList);
+
+        // Saved class in localStorage
+        const savedClassId = localStorage.getItem('gvcn_active_class_id');
+        const savedClass = savedClassId ? activeList.find(c => c.classId === savedClassId) : null;
+
+        // ABSOLUTE PRIORITY:
+        // 1. Real class 11A9 (class_5A1_3loMHV)
+        // 2. Saved class if it is a real class
+        // 3. Any non-demo class
+        // 4. Saved class (if user specifically wanted demo)
+        // 5. First active class
+        const real11A9 = activeList.find(c => c.classId === 'class_5A1_3loMHV');
+        const anyReal = activeList.find(c => !c.isDemo && (c.className?.includes('11A9') || c.studentCount === 45));
+
+        const target = real11A9 || anyReal || (savedClass && !savedClass.isDemo ? savedClass : null) || activeList.find(c => !c.isDemo) || savedClass || activeList[0];
+        if (target) {
+          await applyClass(target);
+        }
+      } catch (err) {
+        console.warn('Init login classes failed:', err);
+      }
+    }
+    initClasses();
   }, []);
+
+  const filteredStudents = React.useMemo(() => {
+    let list = classStudents;
+    if (studentTeamFilter !== 'all') {
+      list = list.filter(s => normalizeTeamName(s.teamName) === studentTeamFilter);
+    }
+    if (studentSearchTerm.trim()) {
+      const q = studentSearchTerm.trim().toLowerCase();
+      list = list.filter(s => 
+        s.fullName.toLowerCase().includes(q) || 
+        (s.studentNumber && String(s.studentNumber).includes(q))
+      );
+    }
+    return list;
+  }, [classStudents, studentTeamFilter, studentSearchTerm]);
 
   const currentRoleCfg = ROLE_CONFIGS[selectedRole] || ROLE_CONFIGS.gvcn;
   const isCadreRole = ['lop_truong', 'lop_pho_hoc_tap', 'lop_pho_lao_dong', 'lop_pho_trat_tu', 'bi_thu', 'pho_bi_thu'].includes(selectedRole);
@@ -152,31 +226,25 @@ export const LoginPage: React.FC = () => {
     clearError();
     setPasscodeError(null);
 
-    // 1. Passcode validation for GVCN
+    // 1. Authentication for GVCN (Google Account Linking & Secure Access - Hidden Passcode)
     if (selectedRole === 'gvcn') {
-      const trimmedGvcnPasscode = gvcnPasscode.trim();
-      if (!trimmedGvcnPasscode) {
-        setPasscodeError('Vui lòng nhập Passcode bảo vệ tài khoản Giáo viên chủ nhiệm!');
+      const finalTeacherName = teacherNameInput.trim() || 'Thầy Phong Qui';
+      localStorage.setItem('gvcn_custom_teacher_name', finalTeacherName);
+      await updateTeacherDisplayName(finalTeacherName);
+
+      // If user has already linked Google account
+      if (isGoogleLinked && (user || localStorage.getItem('gvcn_google_linked') === 'true')) {
+        await signInWithSelectedRole('gvcn');
         return;
       }
 
-      let expectedGvcn = actualGvcnPasscode;
-      if (!expectedGvcn && primaryClassId) {
-        try {
-          expectedGvcn = await getGvcnPasscode(primaryClassId);
-        } catch (e) {
-          console.warn('Error fetching GVCN passcode:', e);
-        }
+      // If not yet linked with Google, initiate Google Sign-in to link Google account (1 Google = 1 GVCN)
+      try {
+        await signInWithGoogle('gvcn');
+      } catch (e: any) {
+        console.warn('Google sign-in flow:', e);
       }
-      if (!expectedGvcn && typeof localStorage !== 'undefined') {
-        expectedGvcn = localStorage.getItem(`gvcn_passcode_${primaryClassId}`) || '1234';
-      }
-      expectedGvcn = (expectedGvcn || '1234').trim();
-
-      if (trimmedGvcnPasscode !== expectedGvcn) {
-        setPasscodeError('Mã Passcode GVCN không chính xác! Vui lòng nhập đúng mã passcode (mặc định: 1234).');
-        return;
-      }
+      return;
     }
 
     // 2. Passcode validation for Ban cán sự lớp
@@ -240,12 +308,7 @@ export const LoginPage: React.FC = () => {
     }
 
     // Proceed to sign in
-    if (selectedRole === 'gvcn') {
-      const finalTeacherName = teacherNameInput.trim() || 'Thầy Phong Qui';
-      localStorage.setItem('gvcn_custom_teacher_name', finalTeacherName);
-      await updateTeacherDisplayName(finalTeacherName);
-      await signInWithSelectedRole(selectedRole, finalTeacherName);
-    } else if (isCadreRole) {
+    if (isCadreRole) {
       const designatedStudent = classStudents.find(s => s.cadreRole === selectedRole);
       const studentName = designatedStudent ? designatedStudent.fullName : currentRoleCfg.defaultStudentName;
       const studentId = designatedStudent ? designatedStudent.studentId : undefined;
@@ -260,7 +323,9 @@ export const LoginPage: React.FC = () => {
       const studentId = designatedStudent ? designatedStudent.studentId : undefined;
       await signInWithSelectedRole(selectedRole, studentName, studentId);
     } else {
-      await signInWithSelectedRole(selectedRole, currentRoleCfg.defaultStudentName || 'Học sinh');
+      const studentName = selectedStudent ? selectedStudent.fullName : (currentRoleCfg.defaultStudentName || 'Học sinh');
+      const studentId = selectedStudent ? selectedStudent.studentId : undefined;
+      await signInWithSelectedRole(selectedRole, studentName, studentId);
     }
   };
 
@@ -320,6 +385,94 @@ export const LoginPage: React.FC = () => {
               <span>{error}</span>
             </div>
           )}
+
+          {/* CLASS SELECTOR BAR */}
+          <div className="mb-5 p-3 rounded-2xl bg-gradient-to-r from-slate-50 via-indigo-50/50 to-slate-50 border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                <School className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-xs font-black text-slate-900">{selectedClass?.className ? `Lớp ${selectedClass.className}` : 'Lớp 11A9'}</span>
+                  {selectedClass?.isDemo ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                      🧪 Lớp mẫu Demo 12A1
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                      ⭐ Lớp thật chính thức (45 HS)
+                    </span>
+                  )}
+                  {isClassLoading && (
+                    <span className="text-[10px] text-indigo-600 font-medium animate-pulse">
+                      Đang đồng bộ...
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  GVCN: <strong>{selectedClass?.teacherName || 'Qui Thái Phong'}</strong> • Sĩ số: <strong>{classStudents.length || 45} học sinh</strong> • 4 tổ
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Switch Button or Dropdown */}
+            {availableClasses.length > 1 && (
+              <div className="relative self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowClassDropdown(!showClassDropdown)}
+                  className="px-2.5 py-1.5 rounded-xl border border-indigo-200 bg-white hover:bg-indigo-50 text-[11px] font-bold text-indigo-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Chuyển đổi giữa Lớp thật 11A9 và Lớp Demo 12A1"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Đổi lớp ({availableClasses.length})</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showClassDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showClassDropdown && (
+                  <div className="absolute right-0 mt-1.5 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1">
+                      Chọn lớp hiển thị:
+                    </div>
+                    {availableClasses.map((cls) => {
+                      const isSelected = selectedClass?.classId === cls.classId;
+                      return (
+                        <button
+                          key={cls.classId}
+                          type="button"
+                          onClick={() => {
+                            applyClass(cls);
+                            setShowClassDropdown(false);
+                          }}
+                          className={`w-full text-left p-2 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? 'bg-indigo-50 text-indigo-950 font-bold border border-indigo-200'
+                              : 'hover:bg-slate-50 text-slate-700 font-medium'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center gap-1.5 text-xs">
+                              <span className="font-extrabold">{cls.className}</span>
+                              {cls.isDemo ? (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 font-bold">Demo</span>
+                              ) : (
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 font-bold">Lớp thật</span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400 block truncate">
+                              GV: {cls.teacherName || 'Qui Thái Phong'} • {cls.studentCount || 45} HS
+                            </span>
+                          </div>
+                          {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* STEP 1: ROLE SELECTION */}
           <div className="mb-6">
@@ -463,109 +616,133 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            {/* A. GVCN INFO & PASSCODE INPUT */}
+            {/* A. GVCN GOOGLE AUTHENTICATION & SECURITY (PASSCODE FULLY HIDDEN) */}
             {selectedRole === 'gvcn' && (
-              <div className="mt-3.5 p-3.5 bg-indigo-50/80 rounded-2xl border-2 border-indigo-200 animate-in fade-in duration-200 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="mt-3.5 p-4 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/90 rounded-2xl border-2 border-indigo-200 animate-in fade-in duration-200 space-y-3.5 shadow-xs">
+                {/* 1. Header with Google & Security Badge */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-700">GVCN:</span>
-                    {isEditingTeacherName ? (
-                      <input
-                        type="text"
-                        value={teacherNameInput}
-                        onChange={(e) => setTeacherNameInput(e.target.value)}
-                        placeholder="Thầy Phong Qui"
-                        className="px-2.5 py-1 text-xs font-bold text-slate-900 bg-white border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    ) : (
-                      <span className="text-xs font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-lg border border-indigo-200">
-                        {teacherNameInput || 'Thầy Phong Qui'}
+                    <div className="p-1.5 bg-indigo-600 text-white rounded-xl shadow-xs">
+                      <ShieldCheck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                        <span>Liên kết Tài khoản Google GVCN</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                          1 Google = 1 GVCN
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Bảo mật cao cấp • Đã ẩn hoàn toàn Passcode để ngăn học sinh xâm nhập
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Google Authentication Status or Action */}
+                {isGoogleLinked && (user?.email || googleEmail) ? (
+                  <div className="p-3.5 bg-white rounded-xl border-2 border-emerald-300 shadow-2xs space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        {user?.photoURL ? (
+                          <img 
+                            src={user.photoURL} 
+                            alt="Avatar" 
+                            className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shadow-2xs" 
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-xs border border-emerald-300">
+                            {(user?.displayName || 'GV')[0]}
+                          </div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-900">{user?.displayName || teacherNameInput || 'Giáo viên'}</span>
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                              Đã xác thực Google
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-medium text-slate-500">{user?.email || googleEmail}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await logout();
+                          localStorage.removeItem('gvcn_google_linked');
+                        }}
+                        className="text-[11px] font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-slate-50 border border-slate-200"
+                        title="Đăng xuất khỏi tài khoản Google hiện tại"
+                      >
+                        Đổi tài khoản
+                      </button>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-600">
+                      <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>Tài khoản GVCN đã được bảo vệ độc quyền bởi Google</span>
                       </span>
-                    )}
+                      <span className="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
+                        {user?.email === 'phongthaiqui@gmail.com' ? 'Lớp thật 11A9 & Demo 12A1' : 'Tự động tải Lớp Demo 12A1'}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-500">Lớp:</span>
-                    <span className="text-xs font-bold text-slate-800 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
-                      {className || 'Lớp của Thầy/Cô'}
-                    </span>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Google Login Call-to-Action Button */}
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isEditingTeacherName) {
-                          localStorage.setItem('gvcn_custom_teacher_name', teacherNameInput.trim());
-                        }
-                        setIsEditingTeacherName(!isEditingTeacherName);
-                      }}
-                      className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer ml-1"
+                      onClick={() => signInWithGoogle('gvcn')}
+                      disabled={loading}
+                      className="w-full py-3.5 px-4 rounded-2xl border-2 border-indigo-200 bg-white hover:bg-indigo-50/70 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-xs hover:border-indigo-400 cursor-pointer group"
                     >
-                      <Edit3 className="w-3 h-3" />
-                      <span>{isEditingTeacherName ? 'Xong' : 'Sửa'}</span>
+                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                      </svg>
+                      <span className="text-indigo-950 group-hover:text-indigo-600 font-extrabold">
+                        Đăng nhập GVCN bằng Google (Tự động liên kết tài khoản)
+                      </span>
                     </button>
-                  </div>
-                </div>
 
-                {/* MANDATORY GVCN PASSCODE INPUT */}
-                <div className="pt-2.5 border-t border-indigo-200/80">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
-                      <Lock className="w-4 h-4 text-indigo-600" />
-                      <span>Nhập Passcode bảo mật tài khoản GVCN:</span>
-                    </label>
-                    <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-full border border-indigo-200 shadow-2xs">
-                      Bảo vệ quyền GVCN
-                    </span>
-                  </div>
-
-                  <div className="relative">
-                    <div className="absolute left-3 top-2.5 text-indigo-600 pointer-events-none">
-                      <KeyRound className="w-4 h-4" />
+                    {/* Explanatory security callout */}
+                    <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 space-y-1.5 font-medium">
+                      <div className="flex items-start gap-1.5 text-indigo-950 font-bold">
+                        <Lock className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                        <span>Cơ chế bảo mật chống học sinh xâm nhập:</span>
+                      </div>
+                      <p className="text-slate-600 pl-5">
+                        • <strong>1 Google = 1 GVCN:</strong> Mỗi tài khoản Google chỉ được liên kết và quản lý duy nhất 1 tài khoản GVCN.
+                      </p>
+                      <p className="text-slate-600 pl-5">
+                        • <strong>Đã ẩn Passcode hoàn toàn:</strong> Học sinh không có tài khoản Google của Giáo viên sẽ không thể vào tài khoản GVCN.
+                      </p>
                     </div>
-                    <input
-                      type={showGvcnPasscode ? "text" : "password"}
-                      value={gvcnPasscode}
-                      onChange={(e) => {
-                        setGvcnPasscode(e.target.value);
-                        setPasscodeError(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleQuickLogin();
-                        }
-                      }}
-                      placeholder="Nhập mã passcode GVCN (mặc định: 1234)..."
-                      maxLength={15}
-                      className={`w-full pl-9 pr-14 py-2 border-2 rounded-xl text-sm font-mono tracking-wider font-bold transition-all focus:outline-none focus:ring-2 ${
-                        passcodeError
-                          ? 'border-rose-400 bg-rose-50/70 text-rose-900 focus:ring-rose-500/20'
-                          : 'border-indigo-300 bg-white text-slate-900 focus:border-indigo-600 focus:ring-indigo-500/20 shadow-xs'
-                      }`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowGvcnPasscode(!showGvcnPasscode)}
-                      className="absolute right-2.5 top-2 text-xs font-semibold text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded cursor-pointer"
-                      title={showGvcnPasscode ? "Ẩn pass code" : "Hiện pass code"}
-                    >
-                      {showGvcnPasscode ? (
-                        <EyeOff className="w-4 h-4 text-slate-600" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-slate-600" />
-                      )}
-                    </button>
-                  </div>
 
-                  {passcodeError ? (
-                    <div className="mt-2 p-2 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 text-[11px] font-bold flex items-start gap-1.5 animate-in fade-in duration-150">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5 text-rose-600" />
-                      <span>{passcodeError}</span>
+                    {/* Quick Demo Preview Option for evaluations */}
+                    <div className="pt-2 border-t border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Dành cho thẩm định / Đánh giá nhanh:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const demoName = teacherNameInput.trim() || 'Thầy Phong Qui';
+                          localStorage.setItem('gvcn_custom_teacher_name', demoName);
+                          await updateTeacherDisplayName(demoName);
+                          await signInAsTeacher(demoName);
+                        }}
+                        className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors cursor-pointer shadow-2xs self-start sm:self-auto"
+                      >
+                        Khám phá Lớp Demo 12A1 (4 tổ, 14 tiêu chí)
+                      </button>
                     </div>
-                  ) : (
-                    <p className="mt-1.5 text-[11px] text-indigo-900/90 leading-relaxed font-medium">
-                      🔒 Tài khoản GVCN được bảo vệ bằng passcode riêng để tránh học sinh tự ý truy cập quyền quản trị lớp.
-                    </p>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -797,27 +974,157 @@ export const LoginPage: React.FC = () => {
               </div>
             )}
 
-            {/* D. HỌC SINH / THÀNH VIÊN INFO (ẨN HOÀN TOÀN MÃ PASSCODE) */}
+            {/* D. HỌC SINH / THÀNH VIÊN - DANH SÁCH HỌC SINH LỚP THẬT (TRA CỨU & XEM ĐIỂM) */}
             {selectedRole === 'thanh_vien' && (
-              <div className="mt-3.5 p-3.5 bg-emerald-50/80 rounded-2xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-emerald-900 animate-in fade-in duration-200">
-                <div className="flex items-start gap-2.5">
-                  <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl shrink-0 mt-0.5">
-                    <GraduationCap className="w-4 h-4" />
+              <div className="mt-3.5 p-4 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/90 rounded-2xl border-2 border-emerald-300 animate-in fade-in duration-200 space-y-3.5 shadow-xs">
+                {/* Header with Title and Mode switch */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-emerald-600 text-white rounded-xl shadow-xs">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                        <span>Danh sách Học sinh {selectedClass?.className ? `Lớp ${selectedClass.className}` : 'Lớp 11A9'}</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                          {classStudents.length} học sinh
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        Chọn tên học sinh để vào xem điểm thi đua cá nhân & xếp hạng tuần
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h5 className="font-bold text-emerald-950 text-xs sm:text-sm">Chế độ xem dành cho học sinh</h5>
-                    <p className="text-[11px] text-emerald-800/90 mt-0.5 leading-relaxed">
-                      Bạn có thể xem ngay điểm thi đua cá nhân, bảng xếp hạng tuần và nhận xét của ban cán sự ở chế độ đọc an toàn.
-                    </p>
+
+                  <button
+                    type="button"
+                    onClick={() => setAuthMethod(authMethod === 'student' ? 'quick' : 'student')}
+                    className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 transition-colors cursor-pointer shadow-2xs self-start sm:self-auto flex items-center gap-1"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>{authMethod === 'student' ? 'Đóng nhập mã nick' : 'Đăng nhập mã nick / mật khẩu'}</span>
+                  </button>
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <input
+                      type="text"
+                      value={studentSearchTerm}
+                      onChange={(e) => setStudentSearchTerm(e.target.value)}
+                      placeholder="Tìm kiếm học sinh theo họ tên hoặc số thứ tự..."
+                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-emerald-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                    />
+                  </div>
+
+                  {/* Team Filter */}
+                  <div className="flex gap-1 overflow-x-auto pb-1 sm:pb-0">
+                    {['all', 'Tổ 1', 'Tổ 2', 'Tổ 3', 'Tổ 4', ...(hasTeam5 ? ['Tổ 5'] : [])].map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setStudentTeamFilter(t)}
+                        className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                          studentTeamFilter === t
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-emerald-200 hover:bg-emerald-50'
+                        }`}
+                      >
+                        {t === 'all' ? 'Tất cả tổ' : t}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAuthMethod('student')}
-                  className="px-3 py-1.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors whitespace-nowrap self-start sm:self-auto cursor-pointer shadow-xs"
-                >
-                  Đăng nhập mã nick
-                </button>
+
+                {/* Student list grid with scroll */}
+                <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1 divide-y divide-emerald-50">
+                  {filteredStudents.length === 0 ? (
+                    <div className="p-4 text-center text-xs text-slate-400">
+                      Không tìm thấy học sinh nào phù hợp trong {selectedClass?.className || 'lớp'}.
+                    </div>
+                  ) : (
+                    filteredStudents.map((std, idx) => {
+                      const isSelected = selectedStudent?.studentId === std.studentId;
+                      const isCadre = std.cadreRole && std.cadreRole !== 'none';
+                      const isLeader = std.isTeamLeader || std.teamRole === 'to_truong';
+                      
+                      return (
+                        <div
+                          key={std.studentId}
+                          onClick={() => setSelectedStudent(std)}
+                          className={`p-2 rounded-xl transition-all flex items-center justify-between cursor-pointer border ${
+                            isSelected
+                              ? 'bg-emerald-100/90 border-emerald-500 shadow-2xs ring-1 ring-emerald-500/20'
+                              : 'bg-white/80 hover:bg-emerald-50/70 border-emerald-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black flex items-center justify-center shrink-0">
+                              {std.studentNumber || idx + 1}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900">{std.fullName}</span>
+                                {isCadre && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-sky-100 text-sky-800 border border-sky-200">
+                                    👑 {ROLE_CONFIGS[std.cadreRole as AppLoginRole]?.title || 'Ban cán sự'}
+                                  </span>
+                                )}
+                                {isLeader && (
+                                  <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                    🎖️ Tổ trưởng
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                {std.teamName || 'Thành viên'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            {isSelected ? (
+                              <span className="text-[10px] font-black text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-300">
+                                Đã chọn ✓
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 px-2 py-0.5 rounded hover:bg-emerald-100/60"
+                              >
+                                Chọn xem điểm
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {selectedStudent ? (
+                  <div className="p-2.5 bg-emerald-100/70 rounded-xl border border-emerald-300 flex items-center justify-between gap-2 text-xs">
+                    <span className="font-bold text-emerald-950 flex items-center gap-1.5 truncate">
+                      <span>Đang chọn:</span>
+                      <strong className="text-emerald-800 underline truncate">{selectedStudent.fullName}</strong>
+                      <span className="text-[10px] text-slate-500 shrink-0">({selectedStudent.teamName})</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickLogin()}
+                      className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] transition-colors shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
+                    >
+                      <span>Vào xem điểm ngay</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-emerald-800 font-medium text-center">
+                    💡 Nhấp vào tên của bạn trong danh sách trên để xem điểm cá nhân, hoặc nhấn nút dưới để vào chế độ chung.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -895,8 +1202,8 @@ export const LoginPage: React.FC = () => {
                 >
                   {selectedRole === 'gvcn' ? (
                     <>
-                      <Lock className="w-4 h-4 text-indigo-100" />
-                      <span>Xác nhận Passcode & Đăng nhập GVCN</span>
+                      <ShieldCheck className="w-4 h-4 text-indigo-100" />
+                      <span>{isGoogleLinked ? 'Tiếp tục vào trang Quản lý GVCN (Google)' : 'Đăng nhập GVCN bằng Google'}</span>
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </>
                   ) : isCadreRole ? (
@@ -919,7 +1226,9 @@ export const LoginPage: React.FC = () => {
                     <>
                       <Sparkles className="w-4 h-4 text-emerald-200 fill-emerald-200" />
                       <span>
-                        Vào xem điểm & Xếp hạng: <strong>{currentRoleCfg.title}</strong>
+                        {selectedStudent 
+                          ? `Vào xem điểm: ${selectedStudent.fullName}` 
+                          : `Vào xem điểm & Xếp hạng: ${currentRoleCfg.title}`}
                       </span>
                       <ArrowRight className="w-4 h-4 ml-1" />
                     </>
@@ -927,7 +1236,7 @@ export const LoginPage: React.FC = () => {
                 </button>
                 <p className="text-[11px] text-center text-slate-500 font-medium">
                   {selectedRole === 'gvcn'
-                    ? '🔒 Yêu cầu nhập đúng Passcode GVCN để truy cập toàn quyền quản trị'
+                    ? '🔒 Bảo mật tài khoản GVCN bằng Google Account • Đã ẩn Passcode để ngăn học sinh truy cập'
                     : isCadreRole
                     ? '🔒 Yêu cầu Passcode Ban cán sự lớp do GVCN cấp để vào nhập nhận xét nề nếp tuần'
                     : selectedRole.startsWith('to_truong')

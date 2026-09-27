@@ -26,6 +26,9 @@ import {
   getTeacherClasses, 
   getPrimaryClass,
   saveClass, 
+  deleteClass,
+  deleteRealClass,
+  ensureTeacherDemoClass,
   getClassStudents, 
   getClassTeams, 
   getClassCriteria, 
@@ -39,6 +42,7 @@ import {
   getClassObservations,
   deleteStudentObservation,
   seedDemoDataForTeacher,
+  seedSingleDemoClass,
   seedTwoClassesDemoData,
   deleteDemoData,
   saveStudent,
@@ -184,6 +188,7 @@ interface ClassDataContextType {
   seedFullDemoClasses: (onProgress?: (status: string, percent: number) => void) => Promise<{ class1: ClassInfo; class2: ClassInfo; integritySummary?: string }>;
   reloadDemoDataAction: (onProgress?: (status: string, percent: number) => void) => Promise<{ class1: ClassInfo; class2: ClassInfo; integritySummary?: string }>;
   deleteDemoDataAction: () => Promise<{ deletedClasses: number; deletedStudents: number; deletedScores: number; deletedEvents: number }>;
+  deleteRealClassAction: (classId: string) => Promise<{ deletedStudents: number; deletedTeams: number; deletedCriteria: number; deletedEvents: number; deletedScores: number }>;
   importStudentsFromPreview: (
     previewItems: ImportPreviewStudent[],
     targetClassId?: string,
@@ -253,27 +258,38 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const loadClasses = useCallback(async () => {
     try {
       setLoading(true);
-      let list = await getTeacherClasses(user?.uid || '');
-      if (list.length === 0) {
-        // Check if there is already an existing primary class in the database
-        const primary = await getPrimaryClass();
-        if (primary) {
-          list = [primary];
+      const teacherId = user?.uid || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_uid') : null) || 'teacher_gvcn';
+      const teacherEmail = user?.email || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_email') : '') || undefined;
+      const isOriginalVerified = typeof localStorage !== 'undefined' && localStorage.getItem('gvcn_is_original_verified') === 'true';
+      const defaultName = isOriginalVerified ? 'Qui Thái Phong' : 'Giáo viên';
+      const teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || user?.displayName || defaultName;
+
+      let list = await getTeacherClasses(teacherId, teacherEmail);
+
+      // Multi-teacher: when logging in as a teacher without a demo class, ensure demo class is loaded
+      const hasDemoClass = list.some(c => c.isDemo && c.status !== 'archived');
+      if (!hasDemoClass) {
+        try {
+          await ensureTeacherDemoClass(teacherId, teacherName);
+          list = await getTeacherClasses(teacherId, teacherEmail);
+        } catch (e) {
+          console.warn('Auto ensure demo class failed:', e);
         }
       }
+
       setClasses(list);
 
       const savedClassId = typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_active_class_id') : null;
+      // Active class MUST belong to this teacher's own list!
       const activeCls = (savedClassId ? list.find(c => c.classId === savedClassId) : null)
         || list.find(c => !c.isDemo && c.status !== 'archived')
-        || list.find(c => c.status !== 'archived')
+        || list.find(c => c.isDemo && c.status !== 'archived')
         || list[0]
         || null;
 
       if (activeCls) {
-        // Automatically normalize teacher name away from old demo template placeholder
         if (!activeCls.teacherName || activeCls.teacherName.includes('Nguyễn Mai Lan')) {
-          activeCls.teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || 'Thầy Phong Qui';
+          activeCls.teacherName = teacherName;
           saveClass(activeCls).catch(console.warn);
         }
         setSelectedWeek(activeCls.currentWeek || 8);
@@ -1479,6 +1495,51 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const deleteRealClassAction = async (classId: string): Promise<{
+    deletedStudents: number;
+    deletedTeams: number;
+    deletedCriteria: number;
+    deletedEvents: number;
+    deletedScores: number;
+  }> => {
+    if (!user) throw new Error('Vui lòng đăng nhập để thực hiện');
+    setLoading(true);
+    try {
+      const result = await deleteRealClass(classId, user.uid);
+      const remainingClasses = await getTeacherClasses(user.uid);
+      setClasses(remainingClasses);
+
+      if (currentClass?.classId === classId) {
+        const nextCls = remainingClasses.find(c => c.isDemo && c.status !== 'archived')
+          || remainingClasses[0]
+          || null;
+
+        setCurrentClass(nextCls);
+        if (nextCls) {
+          setSelectedWeek(nextCls.currentWeek || 8);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('gvcn_active_class_id', nextCls.classId);
+          }
+        } else {
+          setStudents([]);
+          setTeams([]);
+          setCriteria([]);
+          setEvents([]);
+          setAllWeeklyScores([]);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('gvcn_active_class_id');
+          }
+        }
+      }
+      return result;
+    } catch (e) {
+      console.error('Delete real class error:', e);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const seedDemoData = async () => {
     await seedFullDemoClasses();
   };
@@ -1630,8 +1691,8 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     classData: { schoolName?: string; className: string; grade: string; schoolYear: string; teamCount?: number },
     initialStudents?: ImportPreviewStudent[]
   ): Promise<ClassInfo> => {
-    const authUid = auth.currentUser?.uid;
-    const effectiveTeacherId = authUid || user?.uid || currentClass?.teacherId || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_uid') : null) || 'teacher_gvcn';
+    const effectiveTeacherId = user?.uid || auth.currentUser?.uid || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_uid') : null) || 'teacher_gvcn';
+    const effectiveTeacherEmail = user?.email || auth.currentUser?.email || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_email') : '') || undefined;
     setLoading(true);
     try {
       const newCls = await createNewClassInFirestore(
@@ -1647,13 +1708,8 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         localStorage.setItem('gvcn_active_class_id', newCls.classId);
       }
 
-      const updatedList = await getTeacherClasses(effectiveTeacherId);
-      const mergedList = [
-        newCls,
-        ...classes.filter(c => c.classId !== newCls.classId),
-        ...updatedList.filter(c => c.classId !== newCls.classId && !classes.some(x => x.classId === c.classId))
-      ];
-      setClasses(mergedList);
+      const updatedList = await getTeacherClasses(effectiveTeacherId, effectiveTeacherEmail);
+      setClasses(updatedList);
       setCurrentClass(newCls);
       setFilterMode('all');
       setSelectedWeek(newCls.currentWeek || 8);
@@ -1942,6 +1998,7 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       seedFullDemoClasses,
       reloadDemoDataAction,
       deleteDemoDataAction,
+      deleteRealClassAction,
       importStudentsFromPreview,
       transferStudentToClass,
       exportBackupJson,

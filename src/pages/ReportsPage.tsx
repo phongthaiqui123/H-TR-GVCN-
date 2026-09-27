@@ -29,13 +29,15 @@ import {
   FileSpreadsheet,
   ArrowLeft,
   Award,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { ReportGenerationModal } from '../components/reports/ReportGenerationModal';
 import { ReportPreviewEditor } from '../components/reports/ReportPreviewEditor';
 import { BatchCommentsManager } from '../components/reports/BatchCommentsManager';
 import { ParentMessagingCenter } from '../components/reports/ParentMessagingCenter';
 import { ReportHistoryList } from '../components/reports/ReportHistoryList';
+import { StudentViolationsReport } from '../components/reports/StudentViolationsReport';
 import { exportWeeklyDataToExcel, exportDataToCSV } from '../utils/exportUtils';
 import { calculateWeeklyReportStatistics } from '../utils/reportCalculations';
 
@@ -81,7 +83,7 @@ export const ReportsPage: React.FC = () => {
   }, [teams, isTeamLeader, myTeamName]);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'editor' | 'batch_comments' | 'parent_messages' | 'history'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'student_violations' | 'batch_comments' | 'parent_messages' | 'history'>('editor');
 
   // Modal generation state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -246,6 +248,19 @@ export const ReportsPage: React.FC = () => {
         {/* Global Export actions */}
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => setActiveTab('student_violations')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+              activeTab === 'student_violations'
+                ? 'bg-rose-600 text-white shadow-xs'
+                : 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200'
+            }`}
+            title="Xuất thông báo các lỗi vi phạm của từng học sinh (lỗi nào, bao nhiêu lượt vi phạm...)"
+          >
+            <AlertTriangle className="w-4 h-4 text-rose-600" />
+            <span>Thông báo vi phạm HS</span>
+          </button>
+
+          <button
             onClick={handleExportMultiSheetExcel}
             className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
             title="Xuất file Excel đầy đủ 6 sheet"
@@ -402,6 +417,18 @@ export const ReportsPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('student_violations')}
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            activeTab === 'student_violations'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <AlertTriangle className={`w-4 h-4 ${activeTab === 'student_violations' ? 'text-white' : 'text-rose-500'}`} />
+          <span>Thông báo vi phạm học sinh</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('batch_comments')}
           className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
             activeTab === 'batch_comments'
@@ -462,6 +489,21 @@ export const ReportsPage: React.FC = () => {
             </div>
           )}
         </div>
+      )}
+
+      {/* Tab Content 2: Student Violations Report (Lỗi nào, bao nhiêu lượt vi phạm) */}
+      {activeTab === 'student_violations' && (
+        <StudentViolationsReport
+          students={scopedStudents}
+          events={scopedEvents}
+          criteria={criteria}
+          teams={scopedTeams}
+          selectedWeek={selectedWeek}
+          classId={currentClass?.classId}
+          className={currentClass?.className}
+          schoolName={currentClass?.schoolName}
+          teacherName={teacherName}
+        />
       )}
 
       {/* Tab Content 2: Batch and Individual Comments Manager */}

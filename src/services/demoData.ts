@@ -157,27 +157,54 @@ export const PRESET_EVENTS: PresetEventDef[] = [
   { code: 'NEG_SERIOUS', title: 'Vi phạm nghiêm trọng', score: -5, type: 'negative', category: 'behavior', description: 'Mất trật tự nghiêm trọng hoặc dùng điện thoại trong giờ học' },
 ];
 
+// Preset 14 criteria copied directly from the real class (11A9)
+export interface RealCriterionDef {
+  code: string;
+  name: string;
+  description: string;
+  positiveScore: number;
+  negativeScore: number;
+  category: 'study' | 'attendance' | 'behavior' | 'hygiene' | 'responsibility';
+}
+
+export const REAL_CLASS_CRITERIA_PRESET: RealCriterionDef[] = [
+  { code: 'CUSTOM_1790089119591', name: 'Đi trễ giờ truy bài', description: 'Đi học muộn giờ truy bài 15 phút đầu giờ', positiveScore: 0, negativeScore: -10, category: 'attendance' },
+  { code: 'CUSTOM_1790089242261', name: 'Vào lớp sau Giáo viên', description: 'Vào lớp muộn sau khi giáo viên đã bắt đầu tiết dạy', positiveScore: 0, negativeScore: -20, category: 'attendance' },
+  { code: 'CUSTOM_1790089316129', name: 'Nghỉ học có phép', description: 'Nghỉ học có đơn xin phép hoặc phụ huynh liên hệ GVCN', positiveScore: 0, negativeScore: -5, category: 'attendance' },
+  { code: 'CUSTOM_1790089395230', name: 'Nghỉ học không phép', description: 'Nghỉ học không có lý do hoặc không có phép của phụ huynh', positiveScore: 0, negativeScore: -20, category: 'attendance' },
+  { code: 'CUSTOM_1790089692282', name: 'Đồng phục, tác phong', description: 'Chấp hành nghiêm túc quy định về trang phục, phù hiệu và tác phong', positiveScore: 0, negativeScore: -5, category: 'behavior' },
+  { code: 'CUSTOM_1790089822414', name: 'Chuẩn bị bài đầy đủ', description: 'Soạn bài, làm bài tập về nhà và chuẩn bị tài liệu đầy đủ', positiveScore: 5, negativeScore: -5, category: 'study' },
+  { code: 'CUSTOM_1790089870022', name: 'Phát biểu xây dựng bài', description: 'Hăng hái xung phong phát biểu xây dựng bài trong tiết học', positiveScore: 5, negativeScore: 0, category: 'study' },
+  { code: 'CUSTOM_1790089959234', name: 'Hoàn thành nhiệm vụ học tập', description: 'Hoàn thành xuất sắc nhiệm vụ học tập do giáo viên bộ môn giao', positiveScore: 5, negativeScore: -5, category: 'study' },
+  { code: 'CUSTOM_1790090007550', name: 'Làm việc nhóm tích cực', description: 'Nhiệt tình trao đổi, cộng tác hiệu quả trong hoạt động nhóm', positiveScore: 5, negativeScore: -5, category: 'study' },
+  { code: 'CUSTOM_1790090067948', name: 'Giữ trật tự trong giờ học', description: 'Giữ trật tự, tập trung nghe giảng, không nói chuyện riêng', positiveScore: 0, negativeScore: -5, category: 'behavior' },
+  { code: 'CUSTOM_1790090124956', name: 'Đoàn kết, giúp đỡ bạn bè', description: 'Chủ động hướng dẫn, giúp đỡ bạn tiến bộ trong học tập', positiveScore: 10, negativeScore: -5, category: 'responsibility' },
+  { code: 'CUSTOM_1790090184134', name: 'Giao tiếp văn minh', description: 'Lễ phép với thầy cô, giao tiếp hòa nhã, lịch sự với bạn bè', positiveScore: 0, negativeScore: -5, category: 'behavior' },
+  { code: 'CUSTOM_1790090254585', name: 'Tham gia lao động đầy đủ', description: 'Trực nhật sạch sẽ, tham gia đầy đủ buổi lao động tập thể', positiveScore: 10, negativeScore: -10, category: 'responsibility' },
+  { code: 'CUSTOM_1790090301385', name: 'Vắng các buổi lao động', description: 'Vắng mặt không lý do trong buổi lao động vệ sinh chung của lớp', positiveScore: 0, negativeScore: -30, category: 'responsibility' },
+];
+
 /**
- * Generate 1 class demo data with exactly 45 students, 5 teams, 8 weeks of data.
+ * Generate 1 class demo data with exactly 45 students, 4 teams, 14 criteria copied from real class.
  */
 export function generateClassDemoData(
   teacherId: string,
   classNameInput: '12A1' | '12A2' | string = '12A1',
-  teacherNameInput?: string
+  teacherNameInput?: string,
+  customCriteriaList?: Criterion[]
 ): GeneratedDemoPackage {
-  const isClass12A1 = !classNameInput.includes('12A2');
-  const className = isClass12A1 ? '12A1' : '12A2';
-  const classCodePrefix = isClass12A1 ? '12A1' : '12A2';
-  const rawStudentList = isClass12A1 ? DEMO_STUDENTS_12A1 : DEMO_STUDENTS_12A2;
+  const className = '12A1';
+  const classCodePrefix = '12A1';
+  const rawStudentList = DEMO_STUDENTS_12A1;
   const teacherName = teacherNameInput || 'Thầy Phong Qui';
-  const classId = `demo_class_${className.toLowerCase()}_${teacherId.slice(0, 6)}`;
+  const classId = `demo_class_${className.toLowerCase()}_${teacherId.slice(0, 8)}`;
   const now = new Date().toISOString();
 
   const classInfo: ClassInfo = {
     classId,
     teacherId,
     teacherName,
-    className,
+    className: '12A1',
     grade: 'Khối 12',
     schoolYear: '2026-2027',
     currentWeek: 8,
@@ -188,60 +215,91 @@ export function generateClassDemoData(
     isDemo: true,
   };
 
-  // 5 Teams per class (each has exactly 9 students)
-  const teamColors = ['indigo', 'emerald', 'amber', 'rose', 'sky'];
-  const teams: Team[] = [1, 2, 3, 4, 5].map((num, idx) => {
-    const leaderStudent = rawStudentList[(num - 1) * 9];
+  // Exactly 4 Teams per class: Tổ 1, Tổ 2, Tổ 3, Tổ 4
+  const teamColors = ['indigo', 'emerald', 'amber', 'rose'];
+  const teamLeaders = [
+    'Đặng Minh Khang', // Tổ 1
+    'Trần Bảo Châu',   // Tổ 2
+    'Vũ Gia Bảo',       // Tổ 3
+    'Lê Quỳnh Nga',     // Tổ 4
+  ];
+
+  const teams: Team[] = [1, 2, 3, 4].map((num, idx) => {
     return {
       teamId: `demo_team_${num}_${classId}`,
       classId,
       teacherId,
       teamName: `Tổ ${num}`,
       teamNumber: num,
-      leaderName: leaderStudent.name,
+      leaderName: teamLeaders[idx],
       color: teamColors[idx],
       createdAt: now,
       isDemo: true,
     };
   });
 
-  // 5 Core Criteria matching prompt 6
-  const criteriaData = [
-    { code: 'STUDY', name: 'Học tập', description: 'Chuẩn bị bài, làm bài tập đầy đủ, phát biểu xây dựng bài', pos: 2, neg: -1, cat: 'study' as const },
-    { code: 'ATTENDANCE', name: 'Chuyên cần', description: 'Đi học đúng giờ, tham gia đầy đủ các buổi học và truy bài', pos: 1, neg: -1, cat: 'attendance' as const },
-    { code: 'DISCIPLINE', name: 'Nề nếp', description: 'Chấp hành nghiêm chỉnh nội quy, đồng phục, trật tự trong giờ học', pos: 1, neg: -2, cat: 'behavior' as const },
-    { code: 'RESPONSIBILITY', name: 'Ý thức', description: 'Tinh thần tự giác, trực nhật vệ sinh, hoàn thành nhiệm vụ và giúp đỡ bạn', pos: 2, neg: -2, cat: 'responsibility' as const },
-    { code: 'ACTIVITIES', name: 'Tham gia hoạt động', description: 'Tích cực tham gia phong trào Đoàn, hoạt động văn thể mỹ và tập thể lớp', pos: 3, neg: -3, cat: 'responsibility' as const },
-  ];
+  // 14 Criteria replicated from Real Class (11A9)
+  const criteria: Criterion[] = (customCriteriaList && customCriteriaList.length > 0)
+    ? customCriteriaList.map((c, idx) => ({
+        ...c,
+        criterionId: `demo_crit_${idx + 1}_${classId}`,
+        classId,
+        teacherId,
+        order: idx + 1,
+        active: true,
+        isDemo: true,
+        createdAt: now,
+      }))
+    : REAL_CLASS_CRITERIA_PRESET.map((crit, idx) => ({
+        criterionId: `demo_crit_${idx + 1}_${classId}`,
+        teacherId,
+        classId,
+        code: crit.code,
+        name: crit.name,
+        description: crit.description,
+        positiveScore: crit.positiveScore,
+        negativeScore: crit.negativeScore,
+        defaultScore: crit.positiveScore > 0 ? crit.positiveScore : crit.negativeScore,
+        category: crit.category,
+        order: idx + 1,
+        active: true,
+        isDemo: true,
+        createdAt: now,
+      }));
 
-  const criteria: Criterion[] = criteriaData.map((crit, idx) => ({
-    criterionId: `demo_crit_${idx + 1}_${classId}`,
-    teacherId,
-    classId,
-    code: crit.code,
-    name: crit.name,
-    description: crit.description,
-    positiveScore: crit.pos,
-    negativeScore: crit.neg,
-    defaultScore: crit.pos,
-    category: crit.cat,
-    order: idx + 1,
-    active: true,
-    isDemo: true,
-    createdAt: now,
-  }));
+  // 45 Students distributed across 4 Teams:
+  // Tổ 1: 11 hs (0-10)
+  // Tổ 2: 11 hs (11-21)
+  // Tổ 3: 11 hs (22-32)
+  // Tổ 4: 12 hs (33-44)
+  const getTeamIndex = (sIndex: number): number => {
+    if (sIndex < 11) return 0;
+    if (sIndex < 22) return 1;
+    if (sIndex < 33) return 2;
+    return 3;
+  };
 
-  // 45 Students: 12A1-001 -> 12A1-045 or 12A2-001 -> 12A2-045
   const students: Student[] = rawStudentList.map((item, idx) => {
     const studentNumber = idx + 1;
     const formattedNum = String(studentNumber).padStart(3, '0');
     const studentCode = `${classCodePrefix}-${formattedNum}`;
-    const studentId = `demo_std_${classCodePrefix.toLowerCase()}_${formattedNum}_${teacherId.slice(0, 6)}`;
+    const studentId = `demo_std_${classCodePrefix.toLowerCase()}_${formattedNum}_${teacherId.slice(0, 8)}`;
 
-    // Team calculation: exactly 9 students per team (Tổ 1: 0-8, Tổ 2: 9-17, Tổ 3: 18-26, Tổ 4: 27-35, Tổ 5: 36-44)
-    const teamIndex = Math.floor(idx / 9);
-    const team = teams[teamIndex] || teams[0];
-    const isLeader = item.teamRole === 'to_truong';
+    const teamIndex = getTeamIndex(idx);
+    const team = teams[teamIndex];
+    
+    // Assign team leaders for the 4 teams
+    const isLeader = (teamIndex === 0 && idx === 0) ||
+                     (teamIndex === 1 && idx === 11) ||
+                     (teamIndex === 2 && idx === 22) ||
+                     (teamIndex === 3 && idx === 33);
+
+    const isViceLeader = (teamIndex === 0 && idx === 1) ||
+                         (teamIndex === 1 && idx === 12) ||
+                         (teamIndex === 2 && idx === 23) ||
+                         (teamIndex === 3 && idx === 34);
+
+    const calculatedTeamRole: TeamRole = isLeader ? 'to_truong' : (isViceLeader ? 'to_pho' : 'thanh_vien');
 
     return {
       studentId,
@@ -257,7 +315,7 @@ export function generateClassDemoData(
       parentName: `Phụ huynh em ${item.name.split(' ').slice(-1)[0]}`,
       notes: item.note,
       cadreRole: (item.role || 'none') as ClassCadreRole,
-      teamRole: (item.teamRole || 'thanh_vien') as TeamRole,
+      teamRole: calculatedTeamRole,
       isTeamLeader: isLeader,
       status: 'active',
       createdAt: now,
@@ -294,43 +352,57 @@ export function generateClassDemoData(
   const weeklyScores: WeeklyScore[] = [];
   const events: CompetitionEvent[] = [];
 
-  // Map each criterion by code
-  const critMap = new Map(criteria.map(c => [c.code, c]));
+  // Map 14 real criteria helpers
+  const findCriterion = (nameSub: string, fallbackIdx = 0): Criterion => {
+    return criteria.find(c => c.name.toLowerCase().includes(nameSub.toLowerCase())) || criteria[fallbackIdx] || criteria[0];
+  };
 
-  // Helper to safely add an event
+  const cPhatBieu = findCriterion('Phát biểu', 6);
+  const cChuanBi = findCriterion('Chuẩn bị bài', 5);
+  const cNhiemVu = findCriterion('Hoàn thành nhiệm vụ', 7);
+  const cLamNhom = findCriterion('nhóm tích cực', 8);
+  const cDoanKet = findCriterion('Đoàn kết', 10);
+  const cLaoDong = findCriterion('Tham gia lao động', 12);
+  const cDiTre = findCriterion('Đi trễ', 0);
+  const cVaoLopSau = findCriterion('Vào lớp sau', 1);
+  const cNghiCoPhep = findCriterion('có phép', 2);
+  const cNghiKhongPhep = findCriterion('không phép', 3);
+  const cDongPhuc = findCriterion('Đồng phục', 4);
+  const cTratTu = findCriterion('trật tự', 9);
+  const cVanMinh = findCriterion('văn minh', 11);
+  const cVangLaoDong = findCriterion('Vắng các buổi lao động', 13);
+
+  // Helper to safely add an event based on real criteria
   const addEvent = (
     student: Student,
     week: number,
-    preset: PresetEventDef,
+    targetCriterion: Criterion,
+    isPositive: boolean,
     dateString: string,
     customNote?: string,
     eventIndex: number = 1
   ) => {
-    const matchedCrit = critMap.get(
-      preset.category === 'study' ? 'STUDY' :
-      preset.category === 'attendance' ? 'ATTENDANCE' :
-      preset.category === 'behavior' ? 'DISCIPLINE' :
-      preset.category === 'hygiene' ? 'RESPONSIBILITY' : 'ACTIVITIES'
-    ) || criteria[0];
+    const scoreVal = isPositive ? (targetCriterion.positiveScore || 5) : (targetCriterion.negativeScore || -5);
+    const eventType: 'positive' | 'negative' = isPositive ? 'positive' : 'negative';
 
     const event: CompetitionEvent = {
-      eventId: `demo_ev_${student.studentId}_w${week}_${eventIndex}_${preset.code.toLowerCase()}`,
+      eventId: `demo_ev_${student.studentId}_w${week}_${eventIndex}_${(targetCriterion.code || targetCriterion.criterionId).slice(-6)}`,
       teacherId,
       classId,
       studentId: student.studentId,
       studentName: student.fullName,
       teamId: student.teamId,
-      criterionId: matchedCrit.criterionId,
-      criterionName: matchedCrit.name,
+      criterionId: targetCriterion.criterionId,
+      criterionName: targetCriterion.name,
       week,
       weekNumber: week,
       date: dateString,
-      score: preset.score,
-      points: preset.score,
-      type: preset.type,
-      title: preset.title,
-      description: customNote || preset.description,
-      note: customNote || preset.description,
+      score: scoreVal,
+      points: scoreVal,
+      type: eventType,
+      title: customNote || (isPositive ? `Điểm cộng: ${targetCriterion.name}` : `Điểm trừ: ${targetCriterion.name}`),
+      description: customNote || targetCriterion.description,
+      note: customNote || targetCriterion.description,
       schoolYearId: '2026-2027',
       createdAt: `${dateString}T08:30:00.000Z`,
       isDemo: true,
@@ -347,144 +419,120 @@ export function generateClassDemoData(
       let evCount = 0;
 
       if (progressiveIndices.has(sIdx)) {
-        // NHÓM A — TIẾN BỘ RÕ RỆT (Tăng dần từ ~94 lên ~115)
-        // Những tuần đầu: ít điểm cộng, có thể có 1 điểm trừ nhỏ
+        // NHÓM A — TIẾN BỘ RÕ RỆT
         if (w <= 2) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ', evCount); // +1
+          addEvent(student, w, cChuanBi, true, dates.mon, 'Chuẩn bị bài đầy đủ', evCount);
           if (w === 1) {
             evCount++;
-            addEvent(student, w, PRESET_EVENTS[9], dates.wed, 'Quên vở bài tập', evCount); // -1
+            addEvent(student, w, cDiTre, false, dates.wed, 'Đi trễ giờ truy bài', evCount);
           }
         } else if (w <= 4) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ', evCount); // +1
+          addEvent(student, w, cPhatBieu, true, dates.mon, 'Hăng hái phát biểu xây dựng bài', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.wed, 'Tích cực phát biểu xây dựng bài', evCount); // +2
+          addEvent(student, w, cLamNhom, true, dates.wed, 'Làm việc nhóm tích cực', evCount);
         } else if (w <= 6) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.mon, 'Phát biểu đóng góp ý kiến hay', evCount); // +2
+          addEvent(student, w, cPhatBieu, true, dates.mon, 'Phát biểu xây dựng bài đóng góp ý kiến hay', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[3], dates.wed, 'Hoàn thành tốt nhiệm vụ được giao', evCount); // +2
+          addEvent(student, w, cNhiemVu, true, dates.wed, 'Hoàn thành nhiệm vụ học tập xuất sắc', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[6], dates.fri, 'Hỗ trợ bạn cùng tiến trong tổ', evCount); // +3
+          addEvent(student, w, cDoanKet, true, dates.fri, 'Đoàn kết, nhiệt tình giúp đỡ bạn bè', evCount);
         } else {
-          // Tuần 7 và 8: Tỏa sáng rực rỡ
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.mon, 'Hăng hái phát biểu xây dựng bài cả tuần', evCount); // +2
+          addEvent(student, w, cPhatBieu, true, dates.mon, 'Tích cực phát biểu xây dựng bài', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[5], dates.wed, 'Tham gia hoạt động phong trào sôi nổi', evCount); // +3
+          addEvent(student, w, cLaoDong, true, dates.wed, 'Tham gia lao động đầy đủ, trực nhật tốt', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[7], dates.fri, 'Đạt điểm 10 kiểm tra, thành tích nổi bật', evCount); // +5
-          if (w === 8) {
-            evCount++;
-            addEvent(student, w, PRESET_EVENTS[3], '2026-09-10', 'Nhóm trưởng năng nổ, tổ đạt kết quả cao', evCount); // +2
-          }
+          addEvent(student, w, cDoanKet, true, dates.fri, 'Gương mẫu giúp đỡ bạn cùng tiến trong tổ', evCount);
         }
       } else if (decliningIndices.has(sIdx)) {
-        // NHÓM B — GIẢM DẦN (Từ ~108 xuống ~86-88)
-        // Những tuần đầu: còn tốt
+        // NHÓM B — GIẢM DẦN
         if (w <= 2) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ', evCount); // +1
+          addEvent(student, w, cChuanBi, true, dates.mon, 'Chuẩn bị bài đầy đủ', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[3], dates.wed, 'Hoàn thành nhiệm vụ tổ', evCount); // +2
+          addEvent(student, w, cNhiemVu, true, dates.wed, 'Hoàn thành nhiệm vụ tổ', evCount);
         } else if (w <= 4) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[8], dates.mon, 'Đi học trễ giờ truy bài', evCount); // -1
+          addEvent(student, w, cDiTre, false, dates.mon, 'Đi trễ giờ truy bài', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[9], dates.wed, 'Quên mang sách bài tập', evCount); // -1
+          addEvent(student, w, cChuanBi, false, dates.wed, 'Chưa chuẩn bị bài tập đầy đủ', evCount);
         } else if (w <= 6) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[8], dates.mon, 'Đi học trễ lần 2', evCount); // -1
+          addEvent(student, w, cDiTre, false, dates.mon, 'Đi trễ giờ truy bài lần 2', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[10], dates.wed, 'Chưa chuẩn bị bài tập môn Lý', evCount); // -2
+          addEvent(student, w, cTratTu, false, dates.wed, 'Mất trật tự trong giờ học', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[11], dates.fri, 'Nói chuyện riêng trong giờ học', evCount); // -2
+          addEvent(student, w, cDongPhuc, false, dates.fri, 'Vi phạm quy định tác phong đồng phục', evCount);
         } else {
-          // Tuần 7 và 8: Sa sút liên tiếp
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[8], dates.mon, 'Đi học muộn 15 phút đầu giờ', evCount); // -1
+          addEvent(student, w, cVaoLopSau, false, dates.mon, 'Vào lớp sau Giáo viên', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[10], dates.wed, 'Không hoàn thành nhiệm vụ trực ban', evCount); // -2
+          addEvent(student, w, cNhiemVu, false, dates.wed, 'Chưa hoàn thành nhiệm vụ được giao', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[11], dates.fri, 'Mất trật tự làm ảnh hưởng tiết học', evCount); // -2
-          if (w === 8) {
-            evCount++;
-            addEvent(student, w, PRESET_EVENTS[12], '2026-09-10', 'Không tham gia buổi tổng vệ sinh đã đăng ký', evCount); // -3
-          }
+          addEvent(student, w, cTratTu, false, dates.fri, 'Nói chuyện riêng gây mất trật tự tiết học', evCount);
         }
       } else if (highStableIndices.has(sIdx)) {
-        // NHÓM C — ỔN ĐỊNH XUẤT SẮC (Duy trì 108 - 116)
+        // NHÓM C — ỔN ĐỊNH XUẤT SẮC
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ và gương mẫu', evCount); // +1
+        addEvent(student, w, cChuanBi, true, dates.mon, 'Chuẩn bị bài vở chu đáo', evCount);
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[3], dates.wed, 'Hoàn thành chu đáo nhiệm vụ tổ', evCount); // +2
+        addEvent(student, w, cNhiemVu, true, dates.wed, 'Hoàn thành nhiệm vụ học tập tốt', evCount);
         if ((w + sIdx) % 2 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.fri, 'Phát biểu xây dựng bài tự tin', evCount); // +2
+          addEvent(student, w, cPhatBieu, true, dates.fri, 'Tự tin phát biểu xây dựng bài', evCount);
         }
         if (w % 3 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[4], dates.fri, 'Trực nhật xuất sắc, bàn ghế ngay ngắn', evCount); // +2
-        }
-        if (w === 8 && sIdx % 3 === 0) {
-          evCount++;
-          addEvent(student, w, PRESET_EVENTS[5], '2026-09-11', 'Tích cực dẫn dắt phong trào học tập', evCount); // +3
+          addEvent(student, w, cLaoDong, true, dates.fri, 'Tham gia lao động trực nhật lớp sạch sẽ', evCount);
         }
       } else if (fluctuatingIndices.has(sIdx)) {
-        // NHÓM D — BIẾN ĐỘNG (Tuần tăng mạnh, tuần giảm mạnh)
-        const isUpWeek = (w % 2 === 1); // Tuần lẻ tăng, tuần chẵn giảm
+        // NHÓM D — BIẾN ĐỘNG
+        const isUpWeek = (w % 2 === 1);
         if (isUpWeek) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ', evCount); // +1
+          addEvent(student, w, cChuanBi, true, dates.mon, 'Chuẩn bị bài tốt', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.wed, 'Hăng hái phát biểu xây dựng bài', evCount); // +2
+          addEvent(student, w, cPhatBieu, true, dates.wed, 'Phát biểu xây dựng bài sôi nổi', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[5], dates.fri, 'Tham gia văn nghệ/thể thao tích cực', evCount); // +3
-          if (w === 7) {
-            evCount++;
-            addEvent(student, w, PRESET_EVENTS[7], dates.fri, 'Đạt điểm 10 miệng, phong độ xuất sắc', evCount); // +5
-          }
+          addEvent(student, w, cLamNhom, true, dates.fri, 'Làm việc nhóm tích cực', evCount);
         } else {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[8], dates.mon, 'Đi trễ đầu tuần', evCount); // -1
+          addEvent(student, w, cDiTre, false, dates.mon, 'Đi trễ giờ truy bài', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[10], dates.wed, 'Chưa hoàn thành bài tập về nhà', evCount); // -2
+          addEvent(student, w, cChuanBi, false, dates.wed, 'Quên chưa chuẩn bị bài', evCount);
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[11], dates.fri, 'Nói chuyện riêng trong lớp', evCount); // -2
-          if (w === 8) {
-            evCount++;
-            addEvent(student, w, PRESET_EVENTS[9], '2026-09-09', 'Quên mang dụng cụ thực hành', evCount); // -1
-          }
+          addEvent(student, w, cTratTu, false, dates.fri, 'Chưa giữ trật tự trong giờ học', evCount);
         }
       } else if (concernIndices.has(sIdx)) {
-        // NHÓM E — CẦN QUAN TÂM (Quanh 84 - 91, cần hỗ trợ nề nếp & chuyên cần)
+        // NHÓM E — CẦN QUAN TÂM
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[8], dates.mon, 'Đi trễ giờ truy bài', evCount); // -1
+        addEvent(student, w, cDiTre, false, dates.mon, 'Đi trễ giờ truy bài', evCount);
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[9], dates.wed, 'Quên mang sách vở bài tập', evCount); // -1
+        addEvent(student, w, cDongPhuc, false, dates.wed, 'Vi phạm đồng phục tác phong', evCount);
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[10], dates.fri, 'Chưa soạn bài mới', evCount); // -2
+        addEvent(student, w, cChuanBi, false, dates.fri, 'Chưa chuẩn bị bài đầy đủ', evCount);
         if (w % 2 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[11], dates.fri, 'Gục mặt xuống bàn trong giờ học', evCount); // -2
+          addEvent(student, w, cTratTu, false, dates.fri, 'Mất trật tự trong giờ học', evCount);
         }
         if (w >= 6 && sIdx % 2 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Có cố gắng đi đúng giờ đầu tuần', evCount); // +1 động viên
+          addEvent(student, w, cNhiemVu, true, dates.mon, 'Có nỗ lực hoàn thành nhiệm vụ tổ', evCount);
         }
       } else {
-        // Học sinh ổn định tự nhiên (quanh 100 - 105)
+        // Học sinh ổn định tự nhiên
         evCount++;
-        addEvent(student, w, PRESET_EVENTS[0], dates.mon, 'Đi học đúng giờ', evCount); // +1
+        addEvent(student, w, cChuanBi, true, dates.mon, 'Chuẩn bị bài đầy đủ', evCount);
         if ((w + sIdx) % 3 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[2], dates.wed, 'Phát biểu xây dựng bài', evCount); // +2
+          addEvent(student, w, cPhatBieu, true, dates.wed, 'Phát biểu xây dựng bài', evCount);
         }
         if ((w + sIdx) % 5 === 0) {
           evCount++;
-          addEvent(student, w, PRESET_EVENTS[9], dates.fri, 'Quên mang thước kẻ', evCount); // -1
+          addEvent(student, w, cDongPhuc, false, dates.fri, 'Nhắc nhở tác phong đồng phục', evCount);
         }
       }
     }
@@ -624,16 +672,27 @@ export function generateClassDemoData(
 }
 
 /**
- * Generates both 12A1 and 12A2 demo packages (90 students total).
+ * Generates single 12A1 demo package (45 students, 4 teams, 14 criteria replicated from real class).
+ */
+export function generateSingleDemoClassPackage(
+  teacherId: string,
+  teacherNameInput?: string,
+  customCriteriaList?: Criterion[]
+): GeneratedDemoPackage {
+  const teacherName = teacherNameInput || 'Thầy Phong Qui';
+  return generateClassDemoData(teacherId, '12A1', teacherName, customCriteriaList);
+}
+
+/**
+ * Generates demo package for teacher (1 demo class only).
  */
 export function generateTwoClassesDemoData(
   teacherId: string,
-  teacherNameInput?: string
+  teacherNameInput?: string,
+  customCriteriaList?: Criterion[]
 ): [GeneratedDemoPackage, GeneratedDemoPackage] {
-  const teacherName = teacherNameInput || 'Thầy Phong Qui';
-  const class12A1 = generateClassDemoData(teacherId, '12A1', teacherName);
-  const class12A2 = generateClassDemoData(teacherId, '12A2', teacherName);
-  return [class12A1, class12A2];
+  const pkg = generateSingleDemoClassPackage(teacherId, teacherNameInput, customCriteriaList);
+  return [pkg, pkg];
 }
 
 /**
@@ -644,31 +703,44 @@ export function generateDemoData(
   customTeacherName?: string,
   customClassName?: string
 ) {
-  const targetClass = customClassName?.includes('12A2') ? '12A2' : '12A1';
-  return generateClassDemoData(teacherId, targetClass, customTeacherName);
+  return generateSingleDemoClassPackage(teacherId, customTeacherName);
 }
 
 /**
- * Automated Data Integrity Check (Prompt 8, Requirement 19)
+ * Automated Data Integrity Check for 1 Demo Class (45 students, 4 teams, 14 criteria)
  */
 export function verifyDemoDataIntegrity(
   pkg1: GeneratedDemoPackage,
-  pkg2: GeneratedDemoPackage
+  pkg2?: GeneratedDemoPackage
 ): { isHealthy: boolean; errors: string[]; summary: string } {
   const errors: string[] = [];
 
-  // Check 1: 45 students in 12A1, 45 students in 12A2
+  // Check 1: exactly 45 students in 12A1
   if (pkg1.students.length !== 45) {
-    errors.push(`Lớp 12A1 có ${pkg1.students.length} học sinh (yêu cầu đúng 45 học sinh).`);
-  }
-  if (pkg2.students.length !== 45) {
-    errors.push(`Lớp 12A2 có ${pkg2.students.length} học sinh (yêu cầu đúng 45 học sinh).`);
+    errors.push(`Lớp demo 12A1 có ${pkg1.students.length} học sinh (yêu cầu đúng 45 học sinh).`);
   }
 
-  // Check 2: No duplicate studentCode
-  const allStudents = [...pkg1.students, ...pkg2.students];
+  // Check 2: Exactly 4 teams
+  if (pkg1.teams.length !== 4) {
+    errors.push(`Lớp demo có ${pkg1.teams.length} tổ (yêu cầu đúng 4 tổ: Tổ 1 đến Tổ 4).`);
+  }
+
+  // Check 3: Check student distribution across 4 teams (11, 11, 11, 12)
+  pkg1.teams.forEach(t => {
+    const memberCount = pkg1.students.filter(s => s.teamId === t.teamId).length;
+    if (memberCount < 11 || memberCount > 12) {
+      errors.push(`Tổ ${t.teamName} có ${memberCount} học sinh (yêu cầu phân bổ đều 11-12 học sinh).`);
+    }
+  });
+
+  // Check 4: Exactly 14 criteria
+  if (pkg1.criteria.length !== 14) {
+    errors.push(`Lớp demo có ${pkg1.criteria.length} tiêu chí (yêu cầu 14 tiêu chí sao chép từ lớp thật).`);
+  }
+
+  // Check 5: No duplicate studentCode
   const codeSet = new Set<string>();
-  allStudents.forEach(s => {
+  pkg1.students.forEach(s => {
     if (!s.studentCode) {
       errors.push(`Học sinh ${s.fullName} thiếu studentCode.`);
     } else if (codeSet.has(s.studentCode)) {
@@ -678,9 +750,9 @@ export function verifyDemoDataIntegrity(
     }
   });
 
-  // Check 3: Unique student names across all 90 students
+  // Check 6: No duplicate names
   const nameSet = new Set<string>();
-  allStudents.forEach(s => {
+  pkg1.students.forEach(s => {
     if (nameSet.has(s.fullName)) {
       errors.push(`Trùng lặp họ tên học sinh: ${s.fullName}.`);
     } else {
@@ -688,54 +760,18 @@ export function verifyDemoDataIntegrity(
     }
   });
 
-  // Check 4: Each student belongs to exactly 1 class and 1 team
-  allStudents.forEach(s => {
-    if (!s.classId) errors.push(`Học sinh ${s.fullName} không có classId.`);
-    if (!s.teamId) errors.push(`Học sinh ${s.fullName} không có teamId.`);
-  });
-
-  // Check 5: Exactly 5 teams per class, 9 students per team
-  [pkg1, pkg2].forEach(pkg => {
-    if (pkg.teams.length !== 5) {
-      errors.push(`Lớp ${pkg.classInfo.className} có ${pkg.teams.length} tổ (yêu cầu đúng 5 tổ).`);
-    }
-    pkg.teams.forEach(t => {
-      const memberCount = pkg.students.filter(s => s.teamId === t.teamId).length;
-      if (memberCount !== 9) {
-        errors.push(`Tổ ${t.teamName} (${pkg.classInfo.className}) có ${memberCount} học sinh (yêu cầu 9).`);
-      }
-    });
-  });
-
-  // Check 6: No events pointing to non-existent students
-  const studentIdSet = new Set(allStudents.map(s => s.studentId));
-  const allEvents = [...pkg1.events, ...pkg2.events];
-  allEvents.forEach(e => {
+  // Check 7: No events pointing to non-existent students
+  const studentIdSet = new Set(pkg1.students.map(s => s.studentId));
+  pkg1.events.forEach(e => {
     if (!studentIdSet.has(e.studentId)) {
       errors.push(`Sự kiện ${e.eventId} trỏ tới studentId không tồn tại: ${e.studentId}.`);
     }
   });
 
-  // Check 7: No NaN or Infinity scores
-  const allScores = [...pkg1.weeklyScores, ...pkg2.weeklyScores];
-  allScores.forEach(ws => {
+  // Check 8: No NaN or Infinity scores
+  pkg1.weeklyScores.forEach(ws => {
     if (isNaN(ws.finalScore) || !isFinite(ws.finalScore)) {
       errors.push(`Điểm bất thường cho ${ws.scoreId}: finalScore=${ws.finalScore}.`);
-    }
-    if (isNaN(ws.startingScore) || isNaN(ws.totalPositive) || isNaN(ws.totalNegative)) {
-      errors.push(`Điểm bất thường cho ${ws.scoreId}: pos=${ws.totalPositive}, neg=${ws.totalNegative}.`);
-    }
-  });
-
-  // Check 8: No invalid weekNumbers outside 1–8
-  allScores.forEach(ws => {
-    if (ws.week < 1 || ws.week > 8) {
-      errors.push(`Điểm tuần nằm ngoài khoảng 1-8: week=${ws.week}.`);
-    }
-  });
-  allEvents.forEach(e => {
-    if (e.week < 1 || e.week > 8) {
-      errors.push(`Sự kiện nằm ngoài tuần 1-8: week=${e.week}.`);
     }
   });
 
@@ -748,19 +784,19 @@ export function verifyDemoDataIntegrity(
     });
   };
 
-  checkDemoFlag([pkg1.classInfo, pkg2.classInfo], 'classes');
-  checkDemoFlag(allStudents, 'students');
-  checkDemoFlag([...pkg1.teams, ...pkg2.teams], 'teams');
-  checkDemoFlag([...pkg1.criteria, ...pkg2.criteria], 'criteria');
-  checkDemoFlag(allScores, 'weeklyScores');
-  checkDemoFlag(allEvents, 'events');
-  checkDemoFlag([...pkg1.snapshots, ...pkg2.snapshots], 'snapshots');
+  checkDemoFlag([pkg1.classInfo], 'classes');
+  checkDemoFlag(pkg1.students, 'students');
+  checkDemoFlag(pkg1.teams, 'teams');
+  checkDemoFlag(pkg1.criteria, 'criteria');
+  checkDemoFlag(pkg1.weeklyScores, 'weeklyScores');
+  checkDemoFlag(pkg1.events, 'events');
+  checkDemoFlag(pkg1.snapshots, 'snapshots');
 
   return {
     isHealthy: errors.length === 0,
     errors,
     summary: errors.length === 0 
-      ? `Toàn vẹn 100%: 2 lớp (12A1 & 12A2), 90 học sinh, 10 tổ, 8 tuần dữ liệu, ${allScores.length} bản ghi điểm, ${allEvents.length} sự kiện và 16 snapshot!`
-      : `Phát hiện ${errors.length} vấn đề toàn vẹn dữ liệu.`,
+      ? `Toàn vẹn 100%: 1 lớp mẫu (12A1), 45 học sinh, 4 tổ thi đua, 14 tiêu chí sao chép từ lớp thật, 8 tuần dữ liệu, ${pkg1.weeklyScores.length} bản ghi điểm, ${pkg1.events.length} sự kiện và 8 snapshot!`
+      : `Phát hiện ${errors.length} vấn đề toàn vẹn dữ liệu: ${errors[0]}`,
   };
 }

@@ -183,11 +183,14 @@ interface AuthContextType {
   roleSession: RoleSessionInfo;
   loading: boolean;
   error: string | null;
+  isGoogleLinked: boolean;
+  googleEmail: string | null;
   signInWithGoogle: (role?: AppLoginRole) => Promise<void>;
   signInWithEmail: (email: string, pass: string, role?: AppLoginRole) => Promise<void>;
   signUpWithEmail: (email: string, pass: string, name: string) => Promise<void>;
   signInDemo: (role?: AppLoginRole, studentName?: string) => Promise<void>;
   signInWithSelectedRole: (role: AppLoginRole, studentName?: string, studentId?: string) => Promise<void>;
+  signInAsTeacher: (teacherName: string, passcode?: string, customTeacherId?: string) => Promise<void>;
   switchRole: (role: AppLoginRole, studentName?: string, studentId?: string) => void;
   updateTeacherDisplayName: (newName: string) => Promise<void>;
   loginAsStudent: (username: string, pass: string) => Promise<{ success: boolean; error?: string }>;
@@ -280,6 +283,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('gvcn_active_student_id', targetId);
   };
 
+  const isGoogleLinked = Boolean(
+    (user && (user as FirebaseUser).providerData?.some(p => p.providerId === 'google.com')) ||
+    (typeof localStorage !== 'undefined' && localStorage.getItem('gvcn_google_linked') === 'true') ||
+    profile?.googleLinked
+  );
+  const googleEmail = (user?.email) || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_google_email') : null) || profile?.googleEmail || null;
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -287,13 +297,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const userDocRef = doc(db, 'users', currentUser.uid);
           const snap = await getDoc(userDocRef);
-          const savedTeacherName = localStorage.getItem('gvcn_custom_teacher_name') || 'Thầy Phong Qui';
           
+          const isOriginal = currentUser.email === 'phongthaiqui@gmail.com' || currentUser.uid === '3loMHVlubaMq17ltNkkjfXkRVWs2';
+          if (isOriginal) {
+            localStorage.setItem('gvcn_is_original_verified', 'true');
+            localStorage.setItem('gvcn_custom_teacher_name', 'Qui Thái Phong');
+          } else {
+            localStorage.removeItem('gvcn_is_original_verified');
+          }
+
+          const defaultName = isOriginal ? 'Qui Thái Phong' : 'Giáo viên';
+          const savedTeacherName = localStorage.getItem('gvcn_custom_teacher_name') || currentUser.displayName || defaultName;
+          const isGoogle = currentUser.providerData?.some(p => p.providerId === 'google.com') || Boolean(currentUser.photoURL);
+          if (isGoogle) {
+            localStorage.setItem('gvcn_google_linked', 'true');
+            if (currentUser.email) localStorage.setItem('gvcn_google_email', currentUser.email);
+            if (currentUser.displayName) localStorage.setItem('gvcn_google_name', currentUser.displayName);
+          }
+
           if (snap.exists()) {
             const data = snap.data() as UserProfile;
             setProfile({
               ...data,
-              displayName: data.displayName || savedTeacherName
+              displayName: data.displayName || savedTeacherName,
+              googleLinked: isGoogle || data.googleLinked,
+              googleEmail: currentUser.email || data.googleEmail
             });
           } else {
             const newProfile: UserProfile = {
@@ -303,6 +331,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               photoURL: currentUser.photoURL,
               role: 'teacher',
               appRole: appRole,
+              teacherId: currentUser.uid,
+              googleLinked: isGoogle,
+              googleEmail: currentUser.email,
+              googleUid: currentUser.uid,
               createdAt: new Date().toISOString(),
             };
             await setDoc(userDocRef, cleanFirestoreData(newProfile));
@@ -310,7 +342,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (err) {
           console.warn('Could not sync user profile to firestore:', err);
-          const savedTeacherName = localStorage.getItem('gvcn_custom_teacher_name') || 'Thầy Phong Qui';
+          const isOriginal = currentUser.email === 'phongthaiqui@gmail.com' || currentUser.uid === '3loMHVlubaMq17ltNkkjfXkRVWs2';
+          const defaultName = isOriginal ? 'Qui Thái Phong' : 'Giáo viên';
+          const savedTeacherName = localStorage.getItem('gvcn_custom_teacher_name') || currentUser.displayName || defaultName;
+          const isGoogle = currentUser.providerData?.some(p => p.providerId === 'google.com') || Boolean(currentUser.photoURL);
           setProfile({
             uid: currentUser.uid,
             email: currentUser.email,
@@ -318,6 +353,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             photoURL: currentUser.photoURL,
             role: 'teacher',
             appRole: appRole,
+            googleLinked: isGoogle,
+            googleEmail: currentUser.email,
             createdAt: new Date().toISOString(),
           });
         }
@@ -326,7 +363,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const storedUid = localStorage.getItem('gvcn_session_user_uid');
         if (storedUid) {
           const storedRole = (localStorage.getItem('gvcn_app_role') as AppLoginRole) || 'gvcn';
-          const storedName = localStorage.getItem('gvcn_session_user_name') || localStorage.getItem('gvcn_custom_teacher_name') || 'Thầy Phong Qui';
+          const isOriginal = localStorage.getItem('gvcn_is_original_verified') === 'true';
+          const defaultName = isOriginal ? 'Qui Thái Phong' : 'Giáo viên';
+          const storedName = localStorage.getItem('gvcn_session_user_name') || localStorage.getItem('gvcn_custom_teacher_name') || defaultName;
           const storedEmail = localStorage.getItem('gvcn_session_user_email') || `${storedRole}@smartclass.edu.vn`;
           setUser({
             uid: storedUid,
@@ -418,16 +457,127 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const signInAsTeacher = async (teacherName: string, passcode?: string, customTeacherId?: string) => {
+    try {
+      setError(null);
+      setLoading(true);
+      switchRole('gvcn');
+
+      const cleanName = teacherName.trim() || 'Giáo viên';
+      const isPhong = cleanName.toLowerCase().includes('phong');
+
+      // Security check: Only if passcode is 8643 AND name contains 'phong' can someone access the original account!
+      const isOriginal = (isPhong && passcode?.trim() === '8643') || customTeacherId === '3loMHVlubaMq17ltNkkjfXkRVWs2';
+
+      if (isOriginal) {
+        localStorage.setItem('gvcn_is_original_verified', 'true');
+      } else {
+        localStorage.removeItem('gvcn_is_original_verified');
+      }
+
+      const cleanId = isOriginal ? '3loMHVlubaMq17ltNkkjfXkRVWs2' : (
+        customTeacherId || `teacher_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 24)}`
+      );
+      const email = isOriginal ? 'phongthaiqui@gmail.com' : `${cleanId}@smartclass.edu.vn`;
+
+      // Clear previous active class id to allow loading this teacher's demo class
+      localStorage.removeItem('gvcn_active_class_id');
+      localStorage.setItem('gvcn_custom_teacher_name', cleanName);
+      localStorage.setItem('gvcn_session_user_uid', cleanId);
+      localStorage.setItem('gvcn_session_user_email', email);
+      localStorage.setItem('gvcn_session_user_name', cleanName);
+
+      const resolvedUser: LocalUser = {
+        uid: cleanId,
+        email,
+        displayName: cleanName,
+        photoURL: null,
+        isAnonymous: true,
+      };
+
+      const newProfile: UserProfile = {
+        uid: cleanId,
+        email,
+        displayName: cleanName,
+        photoURL: null,
+        role: 'teacher',
+        appRole: 'gvcn',
+        createdAt: new Date().toISOString(),
+      };
+
+      try {
+        await setDoc(doc(db, 'users', cleanId), cleanFirestoreData(newProfile), { merge: true });
+      } catch (e) {
+        console.warn('Save teacher profile doc failed:', e);
+      }
+
+      setUser(resolvedUser);
+      setProfile(newProfile);
+    } catch (err: any) {
+      console.error('Sign in as teacher error:', err);
+      setError('Đăng nhập tài khoản giáo viên thất bại. Vui lòng thử lại.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const signInWithGoogle = async (role: AppLoginRole = 'gvcn') => {
     try {
       setError(null);
       setLoading(true);
       switchRole(role);
-      await signInWithPopup(auth, googleProvider);
+      const res = await signInWithPopup(auth, googleProvider);
+      if (res && res.user) {
+        const googleUser = res.user;
+        const isOriginal = googleUser.email === 'phongthaiqui@gmail.com' || googleUser.uid === '3loMHVlubaMq17ltNkkjfXkRVWs2';
+        
+        // 1 Google account can ONLY link/create 1 GVCN account
+        const teacherUid = isOriginal ? '3loMHVlubaMq17ltNkkjfXkRVWs2' : googleUser.uid;
+        const defaultName = isOriginal ? 'Qui Thái Phong' : (googleUser.displayName || 'Giáo viên');
+        
+        localStorage.setItem('gvcn_google_linked', 'true');
+        localStorage.setItem('gvcn_google_email', googleUser.email || '');
+        localStorage.setItem('gvcn_google_name', defaultName);
+        localStorage.setItem('gvcn_session_user_uid', teacherUid);
+        localStorage.setItem('gvcn_session_user_email', googleUser.email || `${teacherUid}@gmail.com`);
+        localStorage.setItem('gvcn_session_user_name', defaultName);
+        localStorage.setItem('gvcn_custom_teacher_name', defaultName);
+        localStorage.setItem('gvcn_app_role', 'gvcn');
+
+        if (isOriginal) {
+          localStorage.setItem('gvcn_is_original_verified', 'true');
+        } else {
+          localStorage.removeItem('gvcn_is_original_verified');
+        }
+
+        const teacherProfile: UserProfile = {
+          uid: teacherUid,
+          email: googleUser.email,
+          displayName: defaultName,
+          photoURL: googleUser.photoURL,
+          role: 'teacher',
+          appRole: 'gvcn',
+          teacherId: teacherUid,
+          googleLinked: true,
+          googleEmail: googleUser.email,
+          googleUid: googleUser.uid,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        try {
+          await setDoc(doc(db, 'users', teacherUid), cleanFirestoreData(teacherProfile), { merge: true });
+        } catch (e) {
+          console.warn('Sync google teacher profile error:', e);
+        }
+
+        setUser(googleUser);
+        setProfile(teacherProfile);
+      }
     } catch (err: any) {
       console.error('Google Sign-In error:', err);
       if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
-        setError('Cửa sổ đăng nhập bị chặn. Vui lòng mở trang web trong tab mới hoặc dùng Đăng nhập 1 chạm.');
+        setError('Cửa sổ đăng nhập Google bị chặn hoặc đóng sớm. Vui lòng mở trang web trong tab mới hoặc thử lại.');
       } else {
         setError(err.message || 'Đăng nhập Google thất bại');
       }
@@ -691,7 +841,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.removeItem('gvcn_session_user_uid');
       localStorage.removeItem('gvcn_session_user_email');
       localStorage.removeItem('gvcn_session_user_name');
+      localStorage.removeItem('gvcn_active_class_id');
       localStorage.removeItem('gvcn_student_account_user');
+      localStorage.removeItem('gvcn_is_original_verified');
+      localStorage.removeItem('gvcn_custom_teacher_name');
+      localStorage.removeItem('gvcn_google_linked');
+      localStorage.removeItem('gvcn_google_email');
+      localStorage.removeItem('gvcn_google_name');
       await fbSignOut(auth).catch(() => {});
       setUser(null);
       setProfile(null);
@@ -708,11 +864,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       roleSession,
       loading,
       error,
+      isGoogleLinked,
+      googleEmail,
       signInWithGoogle,
       signInWithEmail,
       signUpWithEmail,
       signInDemo,
       signInWithSelectedRole,
+      signInAsTeacher,
       switchRole,
       updateTeacherDisplayName,
       loginAsStudent,

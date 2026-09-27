@@ -33,6 +33,7 @@ import { useAuth } from '../hooks/useAuth';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { ConfirmDeleteDemoModal } from '../components/modals/ConfirmDeleteDemoModal';
+import { ConfirmDeleteRealClassModal } from '../components/modals/ConfirmDeleteRealClassModal';
 
 export const SettingsPage: React.FC = () => {
   const { roleSession } = useAuth();
@@ -52,6 +53,7 @@ export const SettingsPage: React.FC = () => {
     seedFullDemoClasses,
     reloadDemoDataAction,
     deleteDemoDataAction,
+    deleteRealClassAction,
     gvcnPasscode,
     updateGvcnPasscode,
     cadrePasscodes,
@@ -67,6 +69,10 @@ export const SettingsPage: React.FC = () => {
   const [seedProgress, setSeedProgress] = useState<{ status: string; percent: number } | null>(null);
   const [isConfirmDeleteModalOpen, setIsConfirmDeleteModalOpen] = useState(false);
   const [demoMessage, setDemoMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Real class delete state
+  const [isConfirmDeleteRealClassModalOpen, setIsConfirmDeleteRealClassModalOpen] = useState(false);
+  const [realClassMessage, setRealClassMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Passcode states
   const [localGvcnPasscode, setLocalGvcnPasscode] = useState(gvcnPasscode || '1234');
@@ -219,7 +225,7 @@ export const SettingsPage: React.FC = () => {
       hasTeam5 ? `• Tổ 5: ${localTeamPasscodes['Tổ 5'] || '1234'}${getTeamLeaderName('Tổ 5')}` : '',
       ``,
       `💡 HƯỚNG DẪN ĐĂNG NHẬP:`,
-      `- GVCN: Đăng nhập quyền "GVCN lớp" và nhập Passcode GVCN để quản trị toàn quyền.`,
+      `- GVCN: Xác thực bảo mật bằng tài khoản Google (1 Google = 1 GVCN, đã ẩn passcode trên giao diện để chống học sinh xâm nhập).`,
       `- Ban cán sự: Đăng nhập quyền "Ban cán sự" và nhập Passcode để vào mục Nhận xét tuần.`,
       `- Tổ trưởng: Đăng nhập quyền "Tổ trưởng", chọn đúng tổ và nhập Passcode để chấm thi đua.`,
       `- Học sinh: Vào xem điểm & xếp hạng bình thường (không cần mật mã, mọi passcode đều được ẩn).`
@@ -618,7 +624,7 @@ export const SettingsPage: React.FC = () => {
                 </div>
               </div>
               <p className="text-[11px] text-slate-500">
-                🔒 Học sinh không thể biết hoặc xem được mã này. Dùng khi đăng nhập với vai trò "GVCN lớp".
+                🔒 Đã ẩn ô Passcode trên màn hình đăng nhập. GVCN xác thực an toàn qua Tài khoản Google (1 tài khoản Google chỉ liên kết 1 tài khoản GVCN duy nhất để chống học sinh xâm nhập).
               </p>
             </div>
 
@@ -908,7 +914,7 @@ export const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. QUẢN LÝ DỮ LIỆU MẪU (DEMO DATA - 45 HỌC SINH/LỚP) */}
+      {/* 3. QUẢN LÝ DỮ LIỆU MẪU (DEMO DATA - 1 LỚP 12A1: 45 HS, 4 TỔ, 14 TIÊU CHÍ) */}
       <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200 shadow-sm space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div>
@@ -917,11 +923,11 @@ export const SettingsPage: React.FC = () => {
                 <Database className="w-5 h-5" />
               </span>
               <h3 className="font-bold text-base text-slate-900">
-                Dữ liệu mẫu cho GVCN SMART CLASS (45 Học sinh/Lớp)
+                Dữ liệu mẫu cho GVCN (1 Lớp Demo: 45 Học sinh, 4 Tổ thi đua, 14 Tiêu chí)
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1.5 max-w-2xl leading-relaxed">
-              Tạo bộ dữ liệu mô phỏng thực tế <strong>2 lớp mẫu (12A1 & 12A2)</strong>, mỗi lớp <strong>đúng 45 học sinh</strong> (tổng 90 học sinh), chia <strong>5 tổ/lớp</strong>, <strong>8 tuần lịch sử thi đua</strong> với phân bố tự nhiên (tiến bộ, giảm điểm, ổn định, cần quan tâm) và đánh số mã học sinh rõ ràng: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">12A1-001 → 12A1-045</code>, <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-indigo-700">12A2-001 → 12A2-045</code>.
+              Cấu hình mô phỏng gồm <strong>duy nhất 1 lớp demo (12A1)</strong>, <strong>45 học sinh</strong>, chia đều <strong>4 tổ thi đua</strong> (Tổ 1 → Tổ 4), <strong>sao chép đầy đủ 14 tiêu chí thi đua của lớp thật</strong> (Đi trễ, Vào lớp sau GV, Nghỉ học, Đồng phục, Chuẩn bị bài, Phát biểu, Làm việc nhóm, Lao động...) kèm 8 tuần lịch sử thi đua sinh động.
             </p>
           </div>
 
@@ -933,14 +939,14 @@ export const SettingsPage: React.FC = () => {
               onClick={async () => {
                 setIsSeedingDemo(true);
                 setDemoMessage(null);
-                setSeedProgress({ status: 'Bắt đầu khởi tạo 90 học sinh / 2 lớp...', percent: 10 });
+                setSeedProgress({ status: 'Bắt đầu khởi tạo 1 lớp demo (12A1, 45 HS, 4 tổ, 14 tiêu chí)...', percent: 10 });
                 try {
                   const res = await seedFullDemoClasses((status, percent) => {
                     setSeedProgress({ status, percent });
                   });
                   setDemoMessage({
                     type: 'success',
-                    text: `Đã nạp thành công 2 lớp mẫu (12A1 & 12A2, 90 học sinh, 10 tổ, 8 tuần). ${res?.integritySummary || 'Toàn vẹn 100%!'}`,
+                    text: `Đã nạp thành công 1 lớp mẫu (12A1, 45 học sinh, 4 tổ, 14 tiêu chí từ lớp thật, 8 tuần). ${res?.integritySummary || 'Toàn vẹn 100%!'}`,
                   });
                 } catch (err: any) {
                   setDemoMessage({
@@ -955,7 +961,7 @@ export const SettingsPage: React.FC = () => {
               className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-bold transition-all shadow-md shadow-indigo-100 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             >
               <Sparkles className={`w-4 h-4 ${isSeedingDemo ? 'animate-spin' : ''}`} />
-              <span>{isSeedingDemo ? 'Đang xử lý...' : 'Tạo dữ liệu mẫu (90 HS)'}</span>
+              <span>{isSeedingDemo ? 'Đang xử lý...' : 'Tạo dữ liệu mẫu (12A1 - 45 HS, 4 Tổ)'}</span>
             </button>
 
             <button
@@ -964,14 +970,14 @@ export const SettingsPage: React.FC = () => {
               onClick={async () => {
                 setIsSeedingDemo(true);
                 setDemoMessage(null);
-                setSeedProgress({ status: 'Đang làm mới toàn bộ 90 học sinh...', percent: 10 });
+                setSeedProgress({ status: 'Đang làm mới lớp demo 12A1...', percent: 10 });
                 try {
                   const res = await reloadDemoDataAction((status, percent) => {
                     setSeedProgress({ status, percent });
                   });
                   setDemoMessage({
                     type: 'success',
-                    text: `Đã làm mới sạch sẽ 2 lớp mẫu (12A1 & 12A2, 90 học sinh, 8 tuần). ${res?.integritySummary || 'Toàn vẹn 100%!'}`,
+                    text: `Đã làm mới sạch sẽ lớp demo 12A1 (45 học sinh, 4 tổ, 14 tiêu chí, 8 tuần). ${res?.integritySummary || 'Toàn vẹn 100%!'}`,
                   });
                 } catch (err: any) {
                   setDemoMessage({
@@ -1045,9 +1051,9 @@ export const SettingsPage: React.FC = () => {
               Hiện trạng dữ liệu mẫu trong hệ thống:
             </div>
             <div>
-              {classes.filter(c => c.isDemo || c.className === '12A1' || c.className === '12A2').length > 0 ? (
+              {classes.filter(c => c.isDemo || c.className === '12A1').length > 0 ? (
                 <span className="text-emerald-700 font-semibold">
-                  Đang có {classes.filter(c => c.isDemo || c.className === '12A1' || c.className === '12A2').length} lớp demo ({classes.filter(c => c.isDemo || c.className === '12A1' || c.className === '12A2').map(c => c.className).join(', ')}) với 45 HS/lớp.
+                  Đang có 1 lớp demo (12A1) với 45 HS, 4 tổ thi đua và 14 tiêu chí sao chép từ lớp thật.
                 </span>
               ) : (
                 <span className="text-slate-500">
@@ -1066,6 +1072,116 @@ export const SettingsPage: React.FC = () => {
               Việc xóa dữ liệu mẫu <strong>tuyệt đối KHÔNG xóa dữ liệu thật</strong> do thầy cô nhập. Hệ thống chỉ xử lý các tài liệu mang cờ <code className="font-mono bg-emerald-100 text-emerald-900 px-1 py-0.5 rounded">isDemo: true</code>.
             </p>
           </div>
+        </div>
+      </div>
+
+      {/* 4. LỆNH XÓA LỚP THẬT KHI CẦN THIẾT (DANGER ZONE) */}
+      <div className="bg-white p-6 sm:p-7 rounded-3xl border-2 border-rose-200/80 shadow-sm space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-rose-100 text-rose-700">
+                <Trash2 className="w-5 h-5" />
+              </span>
+              <div>
+                <h3 className="font-bold text-base text-slate-900 flex items-center gap-2">
+                  <span>Lệnh Xóa Lớp Thật Khi Cần Thiết</span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 tracking-wider">
+                    Khu vực nguy hiểm
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                  Cho phép GVCN xóa hoàn toàn lớp học thật cùng toàn bộ hồ sơ học sinh, điểm số thi đua, các tuần đã khóa và tiêu chí riêng của lớp đó khi cần dọn dẹp hoặc kết thúc khóa học.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Nút kích hoạt lệnh xóa lớp thật */}
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsConfirmDeleteRealClassModalOpen(true)}
+              className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-bold transition-all shadow-md shadow-rose-200 flex items-center gap-2 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Xóa lớp thật khi cần thiết...</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Thông báo kết quả xóa lớp thật nếu có */}
+        {realClassMessage && (
+          <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+            realClassMessage.type === 'success' 
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-800' 
+              : 'bg-rose-50 border border-rose-200 text-rose-800'
+          }`}>
+            {realClassMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{realClassMessage.text}</span>
+          </div>
+        )}
+
+        {/* Danh sách lớp thật hiện tại trong hệ thống */}
+        <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-100 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-800">
+              Danh sách lớp học thật hiện có:
+            </span>
+            <span className="text-[11px] font-semibold text-rose-700">
+              {classes.filter(c => !c.isDemo && c.status !== 'archived').length} lớp thật
+            </span>
+          </div>
+
+          {classes.filter(c => !c.isDemo && c.status !== 'archived').length > 0 ? (
+            <div className="space-y-2">
+              {classes.filter(c => !c.isDemo && c.status !== 'archived').map((cls) => (
+                <div 
+                  key={cls.classId}
+                  className="p-3 bg-white rounded-xl border border-rose-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold text-sm">
+                      {cls.className.replace(/[^0-9a-zA-Z]/g, '').slice(0, 4) || 'Lớp'}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+                        <span>{cls.className}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-emerald-100 text-emerald-800">
+                          Lớp thực tế
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        {cls.schoolName || 'Trường THPT'} • {cls.grade || 'Khối 11'} • GVCN: <strong>{cls.teacherName || 'Qui Thái Phong'}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700">
+                      {cls.studentCount || 45} học sinh
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsConfirmDeleteRealClassModalOpen(true)}
+                      className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-300 hover:border-rose-600 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa lớp {cls.className}</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-500">
+              Hiện không còn lớp học thật nào trong tài khoản. Bạn có thể sử dụng lớp Demo 12A1 hoặc bấm &ldquo;Tạo lớp thật&rdquo; khi bắt đầu năm học mới.
+            </div>
+          )}
         </div>
       </div>
 
@@ -1296,6 +1412,18 @@ export const SettingsPage: React.FC = () => {
           setDemoMessage({
             type: 'success',
             text: `Đã dọn dẹp an toàn ${stats.deletedClasses} lớp mẫu, ${stats.deletedStudents} hồ sơ học sinh và ${stats.deletedScores + stats.deletedEvents} điểm số/sự kiện mẫu. Toàn bộ dữ liệu thật được bảo vệ nguyên vẹn!`,
+          });
+        }}
+      />
+
+      {/* CONFIRM MODAL: XÓA LỚP THẬT KHI CẦN THIẾT */}
+      <ConfirmDeleteRealClassModal
+        isOpen={isConfirmDeleteRealClassModalOpen}
+        onClose={() => setIsConfirmDeleteRealClassModalOpen(false)}
+        onSuccess={(stats) => {
+          setRealClassMessage({
+            type: 'success',
+            text: `Đã xóa vĩnh viễn và triệt để lớp thật cùng ${stats.deletedStudents} hồ sơ học sinh, ${stats.deletedTeams} tổ thi đua, ${stats.deletedCriteria} tiêu chí và ${stats.deletedEvents + stats.deletedScores} sự kiện/điểm số. Hệ thống đã tự động chuyển sang chế độ dữ liệu an toàn.`,
           });
         }}
       />

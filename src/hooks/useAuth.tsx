@@ -87,14 +87,24 @@ export const ROLE_CONFIGS: Record<AppLoginRole, {
     description: 'Ban cán sự lớp: Đánh giá các hoạt động phong trào Đoàn - Đội và hoạt động ngoại khóa.'
   },
   pho_bi_thu: {
-    title: 'Phó Bí thư Chi đoàn',
-    badge: 'Ban cán sự • Hỗ trợ phong trào',
+    title: 'Thủ quỹ',
+    badge: 'Ban cán sự • Quản lý quỹ lớp',
     category: 'cadre',
     cadreRole: 'pho_bi_thu',
-    defaultStudentName: 'Phó Bí thư',
+    defaultStudentName: 'Thủ quỹ',
     canGrade: true,
     canManageClass: false,
-    description: 'Ban cán sự lớp: Hỗ trợ theo dõi các hoạt động phong trào, Đoàn - Đội và nề nếp lớp.'
+    description: 'Ban cán sự lớp: Quản lý quỹ lớp, theo dõi thu - chi và lập báo cáo tài chính hàng tuần.'
+  },
+  thu_quy: {
+    title: 'Thủ quỹ',
+    badge: 'Ban cán sự • Quản lý quỹ lớp',
+    category: 'cadre',
+    cadreRole: 'thu_quy',
+    defaultStudentName: 'Thủ quỹ',
+    canGrade: true,
+    canManageClass: false,
+    description: 'Ban cán sự lớp: Quản lý quỹ lớp, theo dõi thu - chi và lập báo cáo tài chính hàng tuần.'
   },
   to_truong_to_1: {
     title: 'Tổ trưởng Tổ 1',
@@ -466,8 +476,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const cleanName = teacherName.trim() || 'Giáo viên';
       const isPhong = cleanName.toLowerCase().includes('phong');
 
-      // Security check: Only if passcode is 8643 AND name contains 'phong' can someone access the original account!
-      const isOriginal = (isPhong && passcode?.trim() === '8643') || customTeacherId === '3loMHVlubaMq17ltNkkjfXkRVWs2';
+      // Security check: Only if passcode is 8643 or teacherId 3loMHVlubaMq17ltNkkjfXkRVWs2 can access original account
+      const isOriginal = passcode?.trim() === '8643' || customTeacherId === '3loMHVlubaMq17ltNkkjfXkRVWs2';
 
       if (isOriginal) {
         localStorage.setItem('gvcn_is_original_verified', 'true');
@@ -480,8 +490,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
       const email = isOriginal ? 'phongthaiqui@gmail.com' : `${cleanId}@smartclass.edu.vn`;
 
-      // Clear previous active class id to allow loading this teacher's demo class
-      localStorage.removeItem('gvcn_active_class_id');
+      // Clear previous active class id if switching away or if not original and class was 11A9
+      if (!isOriginal && localStorage.getItem('gvcn_active_class_id') === 'class_5A1_3loMHV') {
+        localStorage.removeItem('gvcn_active_class_id');
+      }
       localStorage.setItem('gvcn_custom_teacher_name', cleanName);
       localStorage.setItem('gvcn_session_user_uid', cleanId);
       localStorage.setItem('gvcn_session_user_email', email);
@@ -548,6 +560,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('gvcn_is_original_verified', 'true');
         } else {
           localStorage.removeItem('gvcn_is_original_verified');
+          if (localStorage.getItem('gvcn_active_class_id') === 'class_5A1_3loMHV') {
+            localStorage.removeItem('gvcn_active_class_id');
+          }
         }
 
         const teacherProfile: UserProfile = {
@@ -575,11 +590,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(teacherProfile);
       }
     } catch (err: any) {
-      console.error('Google Sign-In error:', err);
-      if (err.code === 'auth/popup-blocked' || err.code === 'auth/cancelled-popup-request') {
-        setError('Cửa sổ đăng nhập Google bị chặn hoặc đóng sớm. Vui lòng mở trang web trong tab mới hoặc thử lại.');
+      if (
+        err?.code === 'auth/popup-closed-by-user' ||
+        err?.message?.includes('popup-closed-by-user') ||
+        err?.code === 'auth/cancelled-popup-request'
+      ) {
+        // User closed or dismissed the popup voluntarily; do not treat as an error
+        console.info('Google Sign-In popup closed by user.');
+        setError(null);
+      } else if (err?.code === 'auth/popup-blocked') {
+        console.warn('Google Sign-In popup blocked by browser:', err);
+        setError('Cửa sổ đăng nhập Google bị trình duyệt chặn. Vui lòng cấp quyền mở popup cho trang này hoặc thử lại.');
       } else {
-        setError(err.message || 'Đăng nhập Google thất bại');
+        console.error('Google Sign-In error:', err);
+        setError(err?.message || 'Đăng nhập Google thất bại');
       }
     } finally {
       setLoading(false);
@@ -733,7 +757,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         targetRole = 'lop_pho_trat_tu';
       } else if (account.cadreRole === 'bi_thu' || account.role === 'bi_thu') {
         targetRole = 'bi_thu';
-      } else if (account.cadreRole === 'pho_bi_thu') {
+      } else if (account.cadreRole === 'pho_bi_thu' || (account.cadreRole as any) === 'thu_quy') {
         targetRole = 'pho_bi_thu';
       } else if (account.role === 'to_truong' || account.canGrade || (account as any).isTeamLeader) {
         const teamNum = (account.teamName || '').replace(/\D/g, '');

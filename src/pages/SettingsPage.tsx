@@ -176,6 +176,7 @@ export const SettingsPage: React.FC = () => {
       lop_pho_trat_tu: cPass,
       bi_thu: cPass,
       pho_bi_thu: cPass,
+      thu_quy: cPass,
       cadre_general: cPass,
     });
 
@@ -215,7 +216,7 @@ export const SettingsPage: React.FC = () => {
       `  - Lớp phó Lao động${getName('lop_pho_lao_dong')}`,
       `  - Lớp phó Trật tự${getName('lop_pho_trat_tu')}`,
       `  - Bí thư${getName('bi_thu')}`,
-      `  - Phó Bí thư${getName('pho_bi_thu')}`,
+      `  - Thủ quỹ${getName('pho_bi_thu')}`,
       ``,
       `🎖️ TỔ TRƯỞNG CÁC TỔ (Chấm thi đua):`,
       `• Tổ 1: ${localTeamPasscodes['Tổ 1'] || '1234'}${getTeamLeaderName('Tổ 1')}`,

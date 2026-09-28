@@ -207,7 +207,8 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
         lop_pho_lao_dong: cleanCadrePin,
         lop_pho_trat_tu: cleanCadrePin,
         bi_thu: cleanCadrePin,
-        pho_bi_thu: cleanCadrePin
+        pho_bi_thu: cleanCadrePin,
+        thu_quy: cleanCadrePin
       });
 
       showToast('Đã lưu phân quyền & mã Passcode (GVCN, Ban cán sự, Tổ trưởng) thành công!', 'success');
@@ -354,16 +355,16 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
               <p className="text-[10px] text-slate-500 mt-1">Phụ trách công tác Đội/Đoàn và phong trào</p>
             </div>
 
-            {/* Phó bí thư */}
-            <div className="p-3 rounded-xl border border-pink-200 bg-pink-50/30">
+            {/* Thủ quỹ */}
+            <div className="p-3 rounded-xl border border-teal-200 bg-teal-50/30">
               <label className="flex items-center gap-1.5 font-bold text-slate-800 mb-1.5 text-xs">
-                <Sparkles className="w-3.5 h-3.5 text-pink-600" />
-                <span>Phó bí thư</span>
+                <span className="text-sm">💰</span>
+                <span>Thủ quỹ</span>
               </label>
               <select
                 value={phoBiThu}
                 onChange={(e) => setPhoBiThu(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
               >
                 <option value="">-- Chưa phân công --</option>
                 {students.map(s => (
@@ -372,7 +373,7 @@ export const CadreAssignmentModal: React.FC<CadreAssignmentModalProps> = ({ isOp
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-slate-500 mt-1">Hỗ trợ các hoạt động văn thể mỹ, phong trào</p>
+              <p className="text-[10px] text-slate-500 mt-1">Phụ trách thu chi, quỹ lớp và báo cáo tài chính hàng tuần</p>
             </div>
 
             {/* Passcode Ban cán sự lớp */}

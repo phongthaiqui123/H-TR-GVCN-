@@ -6,6 +6,7 @@ export type AppLoginRole =
   | 'lop_pho_trat_tu'
   | 'bi_thu'
   | 'pho_bi_thu'
+  | 'thu_quy'
   | 'to_truong_to_1' 
   | 'to_truong_to_2' 
   | 'to_truong_to_3' 
@@ -69,6 +70,14 @@ export interface WeeklyCadreReview {
   // 5. Phong trào Đoàn Đội (Bí thư)
   movementAssessment: string;
   movementAuthorName?: string;
+  
+  // 5B. Quỹ lớp & Báo cáo tài chính (Thủ quỹ)
+  treasurerAssessment?: string;
+  treasurerAuthorName?: string;
+  treasurerBalance?: string;
+  treasurerIncome?: string;
+  treasurerExpense?: string;
+  treasurerNotes?: string;
   
   // 6. Nhận xét của từng Tổ trưởng
   teamAssessments: Record<string, WeeklyCadreReviewTeamItem>;
@@ -165,7 +174,8 @@ export type ClassCadreRole =
   | 'lop_pho_lao_dong' 
   | 'lop_pho_trat_tu' 
   | 'bi_thu' 
-  | 'pho_bi_thu';
+  | 'pho_bi_thu'
+  | 'thu_quy';
 
 export type TeamRole = 
   | 'thanh_vien' 

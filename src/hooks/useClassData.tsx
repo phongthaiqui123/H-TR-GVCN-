@@ -24,6 +24,7 @@ import {
 } from '../types';
 import { 
   getTeacherClasses, 
+  getAllClasses,
   getPrimaryClass,
   saveClass, 
   deleteClass,
@@ -202,7 +203,7 @@ interface ClassDataContextType {
 const ClassDataContext = createContext<ClassDataContextType | undefined>(undefined);
 
 export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, updateTeacherDisplayName } = useAuth();
+  const { user, profile, appRole, updateTeacherDisplayName } = useAuth();
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [currentClass, setCurrentClass] = useState<ClassInfo | null>(null);
   const [selectedWeek, setSelectedWeek] = useState<number>(8);
@@ -254,14 +255,47 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   }, [user]);
 
-  // 1. Fetch Teacher Classes
+  // 1. Fetch Classes (Role-aware: Teacher portfolio vs Cadre/Student enrolled class)
   const loadClasses = useCallback(async () => {
     try {
       setLoading(true);
+      const currentAppRole = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_app_role') : null) || appRole || 'gvcn';
+      const isTeacherRole = currentAppRole === 'gvcn';
+      const savedClassId = typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_active_class_id') : null;
+
+      // Case A: Ban cán sự (Cadres), Tổ trưởng (Team Leaders), Học sinh (Students)
+      // They belong to the class they logged into (e.g. real class 11A9 class_5A1_3loMHV).
+      // They MUST NOT be restricted to teacher ownership or overwritten by teacher demo classes!
+      if (!isTeacherRole) {
+        const all = await getAllClasses();
+        const activeClasses = all.filter(c => c.status !== 'archived');
+
+        const activeCls = (savedClassId ? activeClasses.find(c => c.classId === savedClassId) : null)
+          || activeClasses.find(c => c.classId === 'class_5A1_3loMHV')
+          || activeClasses.find(c => !c.isDemo)
+          || activeClasses[0]
+          || null;
+
+        if (activeCls) {
+          setClasses([activeCls]);
+          setCurrentClass(activeCls);
+          setSelectedWeek(activeCls.currentWeek || 8);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('gvcn_active_class_id', activeCls.classId);
+          }
+        }
+        return;
+      }
+
+      // Case B: Giáo viên chủ nhiệm (GVCN)
       const teacherId = user?.uid || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_uid') : null) || 'teacher_gvcn';
       const teacherEmail = user?.email || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_email') : '') || undefined;
+      const emailToCheck = (teacherEmail || (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_session_user_email') : '') || '').toLowerCase();
       const isOriginalVerified = typeof localStorage !== 'undefined' && localStorage.getItem('gvcn_is_original_verified') === 'true';
-      const defaultName = isOriginalVerified ? 'Qui Thái Phong' : 'Giáo viên';
+      const isOriginalAccount = teacherId === '3loMHVlubaMq17ltNkkjfXkRVWs2' || 
+                                emailToCheck === 'phongthaiqui@gmail.com' ||
+                                (isOriginalVerified && teacherId.includes('phong'));
+      const defaultName = isOriginalAccount ? 'Qui Thái Phong' : 'Giáo viên';
       const teacherName = (typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_custom_teacher_name') : null) || user?.displayName || defaultName;
 
       let list = await getTeacherClasses(teacherId, teacherEmail);
@@ -279,9 +313,15 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       setClasses(list);
 
-      const savedClassId = typeof localStorage !== 'undefined' ? localStorage.getItem('gvcn_active_class_id') : null;
+      let effectiveSavedClassId = savedClassId;
+      // Strict isolation: other Google accounts acting as GVCN must NEVER inherit class_5A1_3loMHV
+      if (!isOriginalAccount && effectiveSavedClassId === 'class_5A1_3loMHV') {
+        localStorage.removeItem('gvcn_active_class_id');
+        effectiveSavedClassId = null;
+      }
+
       // Active class MUST belong to this teacher's own list!
-      const activeCls = (savedClassId ? list.find(c => c.classId === savedClassId) : null)
+      const activeCls = (effectiveSavedClassId ? list.find(c => c.classId === effectiveSavedClassId) : null)
         || list.find(c => !c.isDemo && c.status !== 'archived')
         || list.find(c => c.isDemo && c.status !== 'archived')
         || list[0]
@@ -303,7 +343,7 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, appRole]);
 
   useEffect(() => {
     loadClasses();
@@ -923,15 +963,23 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       lop_pho_trat_tu: '1234',
       bi_thu: '1234',
       pho_bi_thu: '1234',
+      thu_quy: '1234',
       cadre_general: '1234'
     };
     if (currentClass?.cadrePasscodes) {
       Object.assign(result, currentClass.cadrePasscodes);
+      const general = currentClass.cadrePasscodes.cadre_general || currentClass.cadrePasscodes.lop_truong;
+      if (!currentClass.cadrePasscodes.thu_quy && (currentClass.cadrePasscodes.pho_bi_thu || general)) {
+        result.thu_quy = currentClass.cadrePasscodes.thu_quy || currentClass.cadrePasscodes.pho_bi_thu || general!;
+      }
     }
     if (typeof localStorage !== 'undefined' && currentClass?.classId) {
       try {
         const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${currentClass.classId}`) || '{}');
         Object.assign(result, cached);
+        if (cached.pho_bi_thu && !cached.thu_quy) {
+          result.thu_quy = cached.pho_bi_thu;
+        }
       } catch {}
     }
     return result;
@@ -1299,7 +1347,7 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (!defaultUsername || forceRoleUsernames) {
         if (isLopTruong) defaultUsername = `${classPrefix}_loptruong`;
         else if (isBiThu) defaultUsername = `${classPrefix}_bithu`;
-        else if (std.cadreRole === 'pho_bi_thu') defaultUsername = `${classPrefix}_phobithu`;
+        else if (std.cadreRole === 'pho_bi_thu' || (std.cadreRole as any) === 'thu_quy') defaultUsername = `${classPrefix}_thuquy`;
         else if (std.cadreRole === 'lop_pho_hoc_tap') defaultUsername = `${classPrefix}_lphoctap`;
         else if (std.cadreRole === 'lop_pho_lao_dong') defaultUsername = `${classPrefix}_lplaodong`;
         else if (std.cadreRole === 'lop_pho_trat_tu') defaultUsername = `${classPrefix}_lptrattu`;

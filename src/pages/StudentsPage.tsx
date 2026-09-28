@@ -587,7 +587,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
               </div>
 
               <div className="p-2 bg-white rounded-lg border border-slate-200">
-                <span className="text-[10px] font-bold text-pink-700 block">✨ Phó bí thư:</span>
+                <span className="text-[10px] font-bold text-teal-700 block">💰 Thủ quỹ:</span>
                 <span className="text-xs font-bold text-slate-900 truncate block">
                   {currentPhoBiThu ? currentPhoBiThu.fullName : <em className="text-slate-400 font-normal">Chưa phân công</em>}
                 </span>
@@ -1335,7 +1335,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
                   <option value="lop_pho_lao_dong">🧹 Lớp phó lao động</option>
                   <option value="lop_pho_trat_tu">🛡️ Lớp phó trật tự</option>
                   <option value="bi_thu">⭐ Bí thư</option>
-                  <option value="pho_bi_thu">✨ Phó bí thư</option>
+                  <option value="pho_bi_thu">💰 Thủ quỹ</option>
                 </select>
               </div>
 

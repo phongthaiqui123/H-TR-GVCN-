@@ -137,10 +137,10 @@ export async function getTeacherClasses(teacherId: string, teacherEmail?: string
         // Direct ownership: The teacher created this class
         if (c.teacherId === teacherId) return true;
 
-        // The original real class 11A9 (class_5A1_3loMHV) is the school's official real class,
-        // accessible to its students, cadres, and teachers
+        // The original real class 11A9 (class_5A1_3loMHV) was created by Thầy Qui Thái Phong (phongthaiqui@gmail.com).
+        // STRICT ACCESS CONTROL: ONLY this original verified Google account can access this real class as GVCN!
         if (c.classId === 'class_5A1_3loMHV') {
-          return true;
+          return isOriginalAccount;
         }
 
         // CRITICAL: NEVER allow any other teacher to see this real class!
@@ -510,50 +510,70 @@ export async function saveGvcnPasscode(classId: string, passcode: string): Promi
 
 // --- Cadre (Ban cán sự lớp) Passcodes Management ---
 export async function getCadrePasscodes(classId: string): Promise<Record<string, string>> {
-  const result: Record<string, string> = {
+  try {
+    const classDoc = await getDoc(doc(db, 'classes', classId));
+    let customPasscodes: Record<string, string> | null = null;
+    if (classDoc.exists()) {
+      const data = classDoc.data() as ClassInfo;
+      if (data.cadrePasscodes && Object.keys(data.cadrePasscodes).length > 0) {
+        customPasscodes = { ...data.cadrePasscodes };
+      }
+    }
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${classId}`) || '{}');
+        if (cached && Object.keys(cached).length > 0) {
+          customPasscodes = { ...(customPasscodes || {}), ...cached };
+        }
+      } catch {}
+    }
+
+    if (customPasscodes) {
+      const general = customPasscodes.cadre_general || customPasscodes.lop_truong || '1234';
+      const phoBiThuOrThuQuy = customPasscodes.thu_quy || customPasscodes.pho_bi_thu || general;
+      return {
+        lop_truong: customPasscodes.lop_truong || general,
+        lop_pho_hoc_tap: customPasscodes.lop_pho_hoc_tap || general,
+        lop_pho_lao_dong: customPasscodes.lop_pho_lao_dong || general,
+        lop_pho_trat_tu: customPasscodes.lop_pho_trat_tu || general,
+        bi_thu: customPasscodes.bi_thu || general,
+        pho_bi_thu: phoBiThuOrThuQuy,
+        thu_quy: phoBiThuOrThuQuy,
+        cadre_general: general
+      };
+    }
+  } catch (err) {
+    console.warn('Error getting cadre passcodes:', err);
+  }
+
+  return {
     lop_truong: '1234',
     lop_pho_hoc_tap: '1234',
     lop_pho_lao_dong: '1234',
     lop_pho_trat_tu: '1234',
     bi_thu: '1234',
     pho_bi_thu: '1234',
+    thu_quy: '1234',
     cadre_general: '1234'
   };
-
-  try {
-    const classDoc = await getDoc(doc(db, 'classes', classId));
-    if (classDoc.exists()) {
-      const data = classDoc.data() as ClassInfo;
-      if (data.cadrePasscodes) {
-        Object.assign(result, data.cadrePasscodes);
-      }
-    }
-    if (typeof localStorage !== 'undefined') {
-      const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${classId}`) || '{}');
-      Object.assign(result, cached);
-    }
-  } catch (err) {
-    console.warn('Error getting cadre passcodes:', err);
-    if (typeof localStorage !== 'undefined') {
-      const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${classId}`) || '{}');
-      Object.assign(result, cached);
-    }
-  }
-
-  return result;
 }
 
 export async function saveCadrePasscodes(classId: string, passcodes: Record<string, string>): Promise<void> {
+  const fullPasscodes = {
+    ...passcodes,
+    thu_quy: passcodes.thu_quy || passcodes.pho_bi_thu || passcodes.cadre_general || '1234',
+    pho_bi_thu: passcodes.pho_bi_thu || passcodes.thu_quy || passcodes.cadre_general || '1234',
+  };
   try {
     const classRef = doc(db, 'classes', classId);
-    await setDoc(classRef, { cadrePasscodes: passcodes }, { merge: true });
+    await setDoc(classRef, { cadrePasscodes: fullPasscodes }, { merge: true });
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(passcodes));
+      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(fullPasscodes));
     }
   } catch (err) {
     console.warn('Error saving cadre passcodes:', err);
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(passcodes));
+      localStorage.setItem(`gvcn_cadre_passcodes_${classId}`, JSON.stringify(fullPasscodes));
     }
   }
 }

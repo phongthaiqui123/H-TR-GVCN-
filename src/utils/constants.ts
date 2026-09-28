@@ -238,11 +238,19 @@ export const CADRE_ROLES_META = {
   },
   pho_bi_thu: { 
     id: 'pho_bi_thu', 
-    label: 'Phó bí thư', 
-    shortLabel: 'Phó bí thư',
-    badgeClass: 'bg-pink-100 text-pink-800 border-pink-300 font-bold', 
-    icon: '✨', 
-    description: 'Hỗ trợ công tác hoạt động phong trào thanh thiếu nhi' 
+    label: 'Thủ quỹ', 
+    shortLabel: 'Thủ quỹ',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold', 
+    icon: '💰', 
+    description: 'Phụ trách thu chi, báo cáo tài chính và quản lý quỹ lớp hàng tuần' 
+  },
+  thu_quy: { 
+    id: 'thu_quy', 
+    label: 'Thủ quỹ', 
+    shortLabel: 'Thủ quỹ',
+    badgeClass: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold', 
+    icon: '💰', 
+    description: 'Phụ trách thu chi, báo cáo tài chính và quản lý quỹ lớp hàng tuần' 
   },
 } as const;
 

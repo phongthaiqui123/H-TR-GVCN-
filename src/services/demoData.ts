@@ -14,7 +14,7 @@ import { DEFAULT_THRESHOLDS, DEFAULT_STARTING_SCORE, calculateRank } from '../ut
 // --- 45 Realistic Synthetic Student Names for 12A1 ---
 export const DEMO_STUDENTS_12A1 = [
   { name: 'Đặng Minh Khang', gender: 'male', note: 'Lớp trưởng, gương mẫu, quản lý lớp tốt', role: 'lop_truong', teamRole: 'to_truong' },
-  { name: 'Bùi Thùy Dương', gender: 'female', note: 'Phó bí thư, năng nổ hoạt động Đoàn', role: 'pho_bi_thu', teamRole: 'to_pho' },
+  { name: 'Bùi Thùy Dương', gender: 'female', note: 'Thủ quỹ, quản lý quỹ lớp và thu chi minh bạch', role: 'pho_bi_thu', teamRole: 'to_pho' },
   { name: 'Nguyễn Hoàng Long', gender: 'male', note: 'Học tốt môn Toán và Tin học', role: 'none', teamRole: 'thanh_vien' },
   { name: 'Lê Ngọc Diệp', gender: 'female', note: 'Vở sạch chữ đẹp, chăm ngoan', role: 'none', teamRole: 'thanh_vien' },
   { name: 'Trần Gia Huy', gender: 'male', note: 'Tiến bộ vượt bậc về ý thức học tập', role: 'none', teamRole: 'thanh_vien' }, // Tiến bộ (Group A)
@@ -67,7 +67,7 @@ export const DEMO_STUDENTS_12A1 = [
 // --- 45 Realistic Synthetic Student Names for 12A2 ---
 export const DEMO_STUDENTS_12A2 = [
   { name: 'Nguyễn Tiến Dũng', gender: 'male', note: 'Lớp trưởng 12A2, điềm đạm, gương mẫu', role: 'lop_truong', teamRole: 'to_truong' },
-  { name: 'Hoàng Khánh Ly', gender: 'female', note: 'Phó bí thư, tổ chức hoạt động văn nghệ', role: 'pho_bi_thu', teamRole: 'to_pho' },
+  { name: 'Hoàng Khánh Ly', gender: 'female', note: 'Thủ quỹ, quản lý quỹ lớp và thu chi minh bạch', role: 'pho_bi_thu', teamRole: 'to_pho' },
   { name: 'Trần Hữu Nghĩa', gender: 'male', note: 'Chăm chỉ, hoàn thành mọi nhiệm vụ', role: 'none', teamRole: 'thanh_vien' },
   { name: 'Lê Ngọc Cầm', gender: 'female', note: 'Ghi chép bài đầy đủ, cẩn thận', role: 'none', teamRole: 'thanh_vien' },
   { name: 'Phạm Công Danh', gender: 'male', note: 'Có bước nhảy vọt về điểm thi đua', role: 'none', teamRole: 'thanh_vien' }, // Tiến bộ (Group A)

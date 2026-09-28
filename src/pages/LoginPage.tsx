@@ -73,15 +73,7 @@ export const LoginPage: React.FC = () => {
   // Cadre (Ban cán sự lớp) Passcode State
   const [cadrePasscode, setCadrePasscode] = useState('');
   const [showCadrePasscode, setShowCadrePasscode] = useState(false);
-  const [actualCadrePasscodes, setActualCadrePasscodes] = useState<Record<string, string>>({
-    lop_truong: '1234',
-    lop_pho_hoc_tap: '1234',
-    lop_pho_lao_dong: '1234',
-    lop_pho_trat_tu: '1234',
-    bi_thu: '1234',
-    pho_bi_thu: '1234',
-    cadre_general: '1234'
-  });
+  const [actualCadrePasscodes, setActualCadrePasscodes] = useState<Record<string, string>>({});
 
   // Team Leader Passcode State
   const [teamPasscode, setTeamPasscode] = useState('');
@@ -146,15 +138,18 @@ export const LoginPage: React.FC = () => {
       ]);
 
       setActualGvcnPasscode(gvcnCode || '8643');
-      setActualCadrePasscodes(cadreCodes && Object.keys(cadreCodes).length > 0 ? cadreCodes : {
-        lop_truong: '1260',
-        lop_pho_hoc_tap: '1260',
-        lop_pho_lao_dong: '1260',
-        lop_pho_trat_tu: '1260',
-        bi_thu: '1260',
-        pho_bi_thu: '1260',
-        cadre_general: '1260'
-      });
+      const resolvedCadreCodes: Record<string, string> = {};
+      if (cadreCodes && Object.keys(cadreCodes).length > 0) {
+        Object.assign(resolvedCadreCodes, cadreCodes);
+        const general = resolvedCadreCodes.cadre_general || resolvedCadreCodes.lop_truong;
+        if (!resolvedCadreCodes.thu_quy && (resolvedCadreCodes.pho_bi_thu || general)) {
+          resolvedCadreCodes.thu_quy = resolvedCadreCodes.pho_bi_thu || general!;
+        }
+        if (!resolvedCadreCodes.pho_bi_thu && (resolvedCadreCodes.thu_quy || general)) {
+          resolvedCadreCodes.pho_bi_thu = resolvedCadreCodes.thu_quy || general!;
+        }
+      }
+      setActualCadrePasscodes(resolvedCadreCodes);
       setClassPasscodes(teamCodes || {});
       if (teamCodes && teamCodes['Tổ 5']) {
         setHasTeam5(true);
@@ -213,7 +208,7 @@ export const LoginPage: React.FC = () => {
   }, [classStudents, studentTeamFilter, studentSearchTerm]);
 
   const currentRoleCfg = ROLE_CONFIGS[selectedRole] || ROLE_CONFIGS.gvcn;
-  const isCadreRole = ['lop_truong', 'lop_pho_hoc_tap', 'lop_pho_lao_dong', 'lop_pho_trat_tu', 'bi_thu', 'pho_bi_thu'].includes(selectedRole);
+  const isCadreRole = ['lop_truong', 'lop_pho_hoc_tap', 'lop_pho_lao_dong', 'lop_pho_trat_tu', 'bi_thu', 'pho_bi_thu', 'thu_quy'].includes(selectedRole);
 
   const currentSelectedTeamName = selectedRole === 'to_truong_to_1' ? 'Tổ 1'
     : selectedRole === 'to_truong_to_2' ? 'Tổ 2'
@@ -226,24 +221,41 @@ export const LoginPage: React.FC = () => {
     clearError();
     setPasscodeError(null);
 
-    // 1. Authentication for GVCN (Google Account Linking & Secure Access - Hidden Passcode)
+    // 1. Authentication for GVCN (Passcode Quick Login or Google Sign-in)
     if (selectedRole === 'gvcn') {
-      const finalTeacherName = teacherNameInput.trim() || 'Thầy Phong Qui';
+      const finalTeacherName = teacherNameInput.trim() || 'Thầy Qui Thái Phong';
       localStorage.setItem('gvcn_custom_teacher_name', finalTeacherName);
       await updateTeacherDisplayName(finalTeacherName);
 
-      // If user has already linked Google account
-      if (isGoogleLinked && (user || localStorage.getItem('gvcn_google_linked') === 'true')) {
-        await signInWithSelectedRole('gvcn');
+      const trimmedGvcnPasscode = gvcnPasscode.trim();
+      if (!trimmedGvcnPasscode) {
+        setPasscodeError('Vui lòng nhập Passcode GVCN để đăng nhập nhanh!');
         return;
       }
 
-      // If not yet linked with Google, initiate Google Sign-in to link Google account (1 Google = 1 GVCN)
-      try {
-        await signInWithGoogle('gvcn');
-      } catch (e: any) {
-        console.warn('Google sign-in flow:', e);
+      // Check against actualGvcnPasscode, class passcode, or '8643'
+      const validPasscodes = [
+        actualGvcnPasscode?.trim(),
+        selectedClass?.gvcnPasscode?.trim(),
+        '8643'
+      ].filter(Boolean);
+
+      const isValid = validPasscodes.includes(trimmedGvcnPasscode);
+      if (!isValid) {
+        setPasscodeError('Mã Passcode GVCN không chính xác! Vui lòng kiểm tra lại.');
+        return;
       }
+
+      // Verified: Set active class and original account verification if 8643 or real class
+      const isRealClass = primaryClassId === 'class_5A1_3loMHV' || selectedClass?.classId === 'class_5A1_3loMHV';
+      const isOriginal = isRealClass || trimmedGvcnPasscode === '8643';
+      if (isOriginal) {
+        localStorage.setItem('gvcn_is_original_verified', 'true');
+        localStorage.setItem('gvcn_session_user_uid', '3loMHVlubaMq17ltNkkjfXkRVWs2');
+        localStorage.setItem('gvcn_session_user_email', 'phongthaiqui@gmail.com');
+      }
+      localStorage.setItem('gvcn_active_class_id', primaryClassId);
+      await signInAsTeacher(finalTeacherName, trimmedGvcnPasscode, isOriginal ? '3loMHVlubaMq17ltNkkjfXkRVWs2' : undefined);
       return;
     }
 
@@ -255,11 +267,15 @@ export const LoginPage: React.FC = () => {
         return;
       }
 
-      let expectedCadre = actualCadrePasscodes[selectedRole] || actualCadrePasscodes['cadre_general'];
+      let expectedCadre = actualCadrePasscodes[selectedRole] 
+        || (selectedRole === 'pho_bi_thu' ? actualCadrePasscodes['thu_quy'] : undefined)
+        || (selectedRole === 'thu_quy' ? actualCadrePasscodes['pho_bi_thu'] : undefined)
+        || actualCadrePasscodes['cadre_general'];
+
       if (!expectedCadre && primaryClassId) {
         try {
           const cp = await getCadrePasscodes(primaryClassId);
-          expectedCadre = cp[selectedRole] || cp['cadre_general'];
+          expectedCadre = cp[selectedRole] || cp['thu_quy'] || cp['pho_bi_thu'] || cp['cadre_general'];
         } catch (e) {
           console.warn('Error fetching cadre passcodes:', e);
         }
@@ -267,13 +283,32 @@ export const LoginPage: React.FC = () => {
       if (!expectedCadre && typeof localStorage !== 'undefined') {
         try {
           const cached = JSON.parse(localStorage.getItem(`gvcn_cadre_passcodes_${primaryClassId}`) || '{}');
-          expectedCadre = cached[selectedRole] || cached['cadre_general'];
+          expectedCadre = cached[selectedRole] || cached['thu_quy'] || cached['pho_bi_thu'] || cached['cadre_general'];
         } catch {}
       }
-      expectedCadre = (expectedCadre || '1234').trim();
+      // Collect ALL valid passcodes configured by GVCN for this cadre role
+      const validCadreCodes = new Set<string>();
 
-      if (trimmedCadrePasscode !== expectedCadre) {
-        setPasscodeError(`Mã Passcode cho ${currentRoleCfg.title} không chính xác! Vui lòng liên hệ GVCN để nhận mã passcode (mặc định: 1234).`);
+      if (expectedCadre?.trim()) validCadreCodes.add(expectedCadre.trim());
+      if (actualCadrePasscodes[selectedRole]?.trim()) validCadreCodes.add(actualCadrePasscodes[selectedRole].trim());
+      if (selectedRole === 'thu_quy' && actualCadrePasscodes['pho_bi_thu']?.trim()) validCadreCodes.add(actualCadrePasscodes['pho_bi_thu'].trim());
+      if (selectedRole === 'pho_bi_thu' && actualCadrePasscodes['thu_quy']?.trim()) validCadreCodes.add(actualCadrePasscodes['thu_quy'].trim());
+      if (actualCadrePasscodes['cadre_general']?.trim()) validCadreCodes.add(actualCadrePasscodes['cadre_general'].trim());
+
+      if (selectedClass?.cadrePasscodes?.[selectedRole]?.trim()) validCadreCodes.add(selectedClass.cadrePasscodes[selectedRole].trim());
+      if (selectedRole === 'thu_quy' && selectedClass?.cadrePasscodes?.['pho_bi_thu']?.trim()) validCadreCodes.add(selectedClass.cadrePasscodes['pho_bi_thu'].trim());
+      if (selectedRole === 'pho_bi_thu' && selectedClass?.cadrePasscodes?.['thu_quy']?.trim()) validCadreCodes.add(selectedClass.cadrePasscodes['thu_quy'].trim());
+      if (selectedClass?.cadrePasscodes?.['cadre_general']?.trim()) validCadreCodes.add(selectedClass.cadrePasscodes['cadre_general'].trim());
+
+      // STRICT VALIDATION: If GVCN has configured passcodes (validCadreCodes not empty),
+      // NEVER allow default 1234 unless 1234 was explicitly configured by GVCN.
+      // Only when completely unconfigured does it accept initial default 1234.
+      if (validCadreCodes.size === 0) {
+        validCadreCodes.add('1234');
+      }
+
+      if (!validCadreCodes.has(trimmedCadrePasscode)) {
+        setPasscodeError(`Mã Passcode cho ${currentRoleCfg.title} không chính xác! Vui lòng liên hệ GVCN để nhận mã passcode.`);
         return;
       }
     }
@@ -299,17 +334,35 @@ export const LoginPage: React.FC = () => {
         const cached = JSON.parse(localStorage.getItem(`gvcn_passcodes_${primaryClassId}`) || '{}');
         expected = cached[currentSelectedTeamName];
       }
-      expected = (expected || '1234').trim();
 
-      if (trimmedPasscode !== expected) {
+      const validTeamCodes = new Set<string>();
+      if (expected?.trim()) validTeamCodes.add(expected.trim());
+      if (classPasscodes[currentSelectedTeamName]?.trim()) validTeamCodes.add(classPasscodes[currentSelectedTeamName].trim());
+      if (selectedClass?.teamLeaderPasscodes?.[currentSelectedTeamName]?.trim()) {
+        validTeamCodes.add(selectedClass.teamLeaderPasscodes[currentSelectedTeamName].trim());
+      }
+
+      // STRICT VALIDATION: If GVCN has configured passcodes for this team, do NOT allow default 1234
+      if (validTeamCodes.size === 0) {
+        validTeamCodes.add('1234');
+      }
+
+      if (!validTeamCodes.has(trimmedPasscode)) {
         setPasscodeError(`Mã Pass code cho Tổ trưởng ${currentSelectedTeamName} không chính xác! Vui lòng nhập đúng mã pass code do Giáo viên chủ nhiệm cấp.`);
         return;
       }
     }
 
+    // Crucial: persist target class id for cadres, team leaders and students
+    localStorage.setItem('gvcn_active_class_id', primaryClassId);
+
     // Proceed to sign in
     if (isCadreRole) {
-      const designatedStudent = classStudents.find(s => s.cadreRole === selectedRole);
+      const designatedStudent = classStudents.find(s => 
+        s.cadreRole === selectedRole || 
+        (selectedRole === 'pho_bi_thu' && (s.cadreRole as any) === 'thu_quy') ||
+        (selectedRole === 'thu_quy' && (s.cadreRole as any) === 'pho_bi_thu')
+      );
       const studentName = designatedStudent ? designatedStudent.fullName : currentRoleCfg.defaultStudentName;
       const studentId = designatedStudent ? designatedStudent.studentId : undefined;
       await signInWithSelectedRole(selectedRole, studentName, studentId);
@@ -616,10 +669,10 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
 
-            {/* A. GVCN GOOGLE AUTHENTICATION & SECURITY (PASSCODE FULLY HIDDEN) */}
+            {/* A. GVCN AUTHENTICATION (PASSCODE QUICK LOGIN & GOOGLE SIGN-IN) */}
             {selectedRole === 'gvcn' && (
-              <div className="mt-3.5 p-4 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/90 rounded-2xl border-2 border-indigo-200 animate-in fade-in duration-200 space-y-3.5 shadow-xs">
-                {/* 1. Header with Google & Security Badge */}
+              <div className="mt-3.5 p-4 bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/90 rounded-2xl border-2 border-indigo-200 animate-in fade-in duration-200 space-y-4 shadow-xs">
+                {/* 1. Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
                   <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-indigo-600 text-white rounded-xl shadow-xs">
@@ -627,122 +680,184 @@ export const LoginPage: React.FC = () => {
                     </div>
                     <div>
                       <h4 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
-                        <span>Liên kết Tài khoản Google GVCN</span>
+                        <span>Đăng nhập Giáo viên chủ nhiệm (GVCN)</span>
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
-                          1 Google = 1 GVCN
+                          {selectedClass?.className || 'Lớp 11A9'}
                         </span>
                       </h4>
                       <p className="text-[11px] text-slate-500 font-medium">
-                        Bảo mật cao cấp • Đã ẩn hoàn toàn Passcode để ngăn học sinh xâm nhập
+                        Toàn quyền quản lý nề nếp, điểm thi đua, học sinh & ban cán sự
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* 2. Google Authentication Status or Action */}
-                {isGoogleLinked && (user?.email || googleEmail) ? (
-                  <div className="p-3.5 bg-white rounded-xl border-2 border-emerald-300 shadow-2xs space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        {user?.photoURL ? (
-                          <img 
-                            src={user.photoURL} 
-                            alt="Avatar" 
-                            className="w-10 h-10 rounded-full border-2 border-emerald-400 object-cover shadow-2xs" 
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-xs border border-emerald-300">
-                            {(user?.displayName || 'GV')[0]}
-                          </div>
-                        )}
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-bold text-slate-900">{user?.displayName || teacherNameInput || 'Giáo viên'}</span>
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                              Đã xác thực Google
+                {/* 2. QUICK PASSCODE LOGIN (RE-ENABLED FOR FAST ACCESS) */}
+                <div className="p-3.5 bg-white rounded-xl border border-indigo-200 shadow-2xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                      <KeyRound className="w-4 h-4 text-indigo-600" />
+                      <span>Mật mã Passcode GVCN:</span>
+                    </label>
+                    <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                      Bảo mật riêng GVCN
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-indigo-600 pointer-events-none">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <input
+                      type={showGvcnPasscode ? "text" : "password"}
+                      value={gvcnPasscode}
+                      onChange={(e) => {
+                        setGvcnPasscode(e.target.value);
+                        setPasscodeError(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleQuickLogin();
+                        }
+                      }}
+                      placeholder="Nhập mật mã passcode GVCN..."
+                      maxLength={12}
+                      className={`w-full pl-9 pr-14 py-2 border-2 rounded-xl text-sm font-mono tracking-wider font-bold transition-all focus:outline-none focus:ring-2 ${
+                        passcodeError
+                          ? 'border-rose-400 bg-rose-50/70 text-rose-900 focus:ring-rose-500/20'
+                          : 'border-indigo-300 bg-white text-slate-900 focus:border-indigo-600 focus:ring-indigo-500/20 shadow-xs'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowGvcnPasscode(!showGvcnPasscode)}
+                      className="absolute right-2.5 top-2 text-xs font-semibold text-slate-500 hover:text-slate-800 px-1.5 py-0.5 rounded cursor-pointer"
+                      title={showGvcnPasscode ? "Ẩn passcode" : "Hiện passcode"}
+                    >
+                      {showGvcnPasscode ? (
+                        <EyeOff className="w-4 h-4 text-slate-600" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-slate-600" />
+                      )}
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleQuickLogin}
+                    disabled={loading}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Đăng nhập nhanh bằng Passcode GVCN</span>
+                  </button>
+                </div>
+
+                {/* 3. GOOGLE SIGN-IN OPTION WITH STRICT ACCESS NOTICE */}
+                <div className="pt-1 space-y-2.5">
+                  <div className="relative flex items-center justify-center">
+                    <div className="border-t border-indigo-200 w-full"></div>
+                    <span className="bg-gradient-to-r from-indigo-50 via-white to-violet-50 px-3 text-[11px] font-bold text-indigo-800 shrink-0">
+                      Hoặc đăng nhập bảo mật bằng Google
+                    </span>
+                    <div className="border-t border-indigo-200 w-full"></div>
+                  </div>
+
+                  {isGoogleLinked && (user?.email || googleEmail) ? (
+                    <div className="p-3 bg-white rounded-xl border border-emerald-300 shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          {user?.photoURL ? (
+                            <img 
+                              src={user.photoURL} 
+                              alt="Avatar" 
+                              className="w-8 h-8 rounded-full border border-emerald-400 object-cover" 
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs">
+                              {(user?.displayName || 'GV')[0]}
+                            </div>
+                          )}
+                          <div className="text-left">
+                            <span className="text-xs font-bold text-slate-900 block leading-tight">
+                              {user?.displayName || teacherNameInput || 'Giáo viên'}
                             </span>
+                            <span className="text-[10px] text-slate-500">{user?.email || googleEmail}</span>
                           </div>
-                          <span className="text-[11px] font-medium text-slate-500">{user?.email || googleEmail}</span>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await logout();
+                            localStorage.removeItem('gvcn_google_linked');
+                          }}
+                          className="text-[10px] font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer px-2 py-1 rounded border border-slate-200"
+                        >
+                          Đổi tài khoản
+                        </button>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await logout();
-                          localStorage.removeItem('gvcn_google_linked');
-                        }}
-                        className="text-[11px] font-bold text-slate-500 hover:text-rose-600 transition-colors cursor-pointer px-2.5 py-1 rounded-lg hover:bg-slate-50 border border-slate-200"
-                        title="Đăng xuất khỏi tài khoản Google hiện tại"
-                      >
-                        Đổi tài khoản
-                      </button>
+                      <div className="text-[10px] text-slate-600 font-medium">
+                        {user?.email === 'phongthaiqui@gmail.com' ? (
+                          <span className="text-emerald-700 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Đã xác thực chủ sở hữu Lớp thật 11A9 (phongthaiqui@gmail.com)
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 font-medium">
+                            Tài khoản Google khác: Bạn chỉ có quyền quản trị lớp do bạn tạo hoặc lớp demo.
+                          </span>
+                        )}
+                      </div>
                     </div>
-
-                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[11px] text-slate-600">
-                      <span className="flex items-center gap-1.5 text-emerald-700 font-bold">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        <span>Tài khoản GVCN đã được bảo vệ độc quyền bởi Google</span>
-                      </span>
-                      <span className="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                        {user?.email === 'phongthaiqui@gmail.com' ? 'Lớp thật 11A9 & Demo 12A1' : 'Tự động tải Lớp Demo 12A1'}
-                      </span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Google Login Call-to-Action Button */}
+                  ) : (
                     <button
                       type="button"
                       onClick={() => signInWithGoogle('gvcn')}
                       disabled={loading}
-                      className="w-full py-3.5 px-4 rounded-2xl border-2 border-indigo-200 bg-white hover:bg-indigo-50/70 text-slate-800 font-bold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-xs hover:border-indigo-400 cursor-pointer group"
+                      className="w-full py-2.5 px-4 rounded-xl border-2 border-indigo-200 bg-white hover:bg-indigo-50/70 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:border-indigo-400 cursor-pointer"
                     >
-                      <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
                         <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
-                      <span className="text-indigo-950 group-hover:text-indigo-600 font-extrabold">
-                        Đăng nhập GVCN bằng Google (Tự động liên kết tài khoản)
+                      <span className="text-indigo-950 font-bold">
+                        Đăng nhập GVCN bằng Google (Dành cho phongthaiqui@gmail.com)
                       </span>
                     </button>
+                  )}
 
-                    {/* Explanatory security callout */}
-                    <div className="p-3 bg-indigo-50/70 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 space-y-1.5 font-medium">
-                      <div className="flex items-start gap-1.5 text-indigo-950 font-bold">
-                        <Lock className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
-                        <span>Cơ chế bảo mật chống học sinh xâm nhập:</span>
-                      </div>
-                      <p className="text-slate-600 pl-5">
-                        • <strong>1 Google = 1 GVCN:</strong> Mỗi tài khoản Google chỉ được liên kết và quản lý duy nhất 1 tài khoản GVCN.
-                      </p>
-                      <p className="text-slate-600 pl-5">
-                        • <strong>Đã ẩn Passcode hoàn toàn:</strong> Học sinh không có tài khoản Google của Giáo viên sẽ không thể vào tài khoản GVCN.
-                      </p>
-                    </div>
-
-                    {/* Quick Demo Preview Option for evaluations */}
-                    <div className="pt-2 border-t border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-500 font-medium">
-                        Dành cho thẩm định / Đánh giá nhanh:
+                  {/* Security disclaimer */}
+                  <div className="p-2.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-[11px] text-indigo-900 space-y-1">
+                    <p className="text-slate-600 flex items-start gap-1">
+                      <Lock className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+                      <span>
+                        <strong>Bảo mật phân quyền:</strong> Chỉ duy nhất tài khoản Google <strong>phongthaiqui@gmail.com</strong> (hoặc Passcode GVCN hợp lệ) mới có quyền truy cập quản trị Lớp thật 11A9 do Thầy tạo.
                       </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const demoName = teacherNameInput.trim() || 'Thầy Phong Qui';
-                          localStorage.setItem('gvcn_custom_teacher_name', demoName);
-                          await updateTeacherDisplayName(demoName);
-                          await signInAsTeacher(demoName);
-                        }}
-                        className="text-[11px] font-bold text-indigo-700 hover:text-indigo-900 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors cursor-pointer shadow-2xs self-start sm:self-auto"
-                      >
-                        Khám phá Lớp Demo 12A1 (4 tổ, 14 tiêu chí)
-                      </button>
-                    </div>
+                    </p>
                   </div>
-                )}
+                </div>
+
+                {/* Quick Demo Option */}
+                <div className="pt-2 border-t border-indigo-100 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-500">Thẩm định chức năng:</span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const demoName = teacherNameInput.trim() || 'Thầy Phong Qui';
+                      localStorage.setItem('gvcn_custom_teacher_name', demoName);
+                      await updateTeacherDisplayName(demoName);
+                      await signInAsTeacher(demoName);
+                    }}
+                    className="font-bold text-indigo-700 hover:text-indigo-900 bg-white px-2 py-0.5 rounded border border-indigo-200 transition-colors cursor-pointer"
+                  >
+                    Xem Lớp Demo 12A1 (4 tổ)
+                  </button>
+                </div>
               </div>
             )}
 
@@ -767,11 +882,11 @@ export const LoginPage: React.FC = () => {
                       { id: 'lop_pho_lao_dong' as AppLoginRole, name: 'LP Lao động', icon: '🧹', desc: 'Vệ sinh & trực nhật' },
                       { id: 'lop_pho_trat_tu' as AppLoginRole, name: 'LP Trật tự', icon: '🛡️', desc: 'Kỷ luật & nề nếp' },
                       { id: 'bi_thu' as AppLoginRole, name: 'Bí thư', icon: '⭐', desc: 'Hoạt động Đoàn/Đội' },
-                      { id: 'pho_bi_thu' as AppLoginRole, name: 'Phó Bí thư', icon: '✨', desc: 'Hỗ trợ phong trào' },
+                      { id: 'pho_bi_thu' as AppLoginRole, name: 'Thủ quỹ', icon: '💰', desc: 'Báo cáo quỹ lớp' },
                     ].map((c) => {
-                      const cadreStudent = classStudents.find(s => s.cadreRole === c.id);
+                      const cadreStudent = classStudents.find(s => s.cadreRole === c.id || (c.id === 'pho_bi_thu' && (s.cadreRole as any) === 'thu_quy'));
                       const studentLabel = cadreStudent ? cadreStudent.fullName : c.name;
-                      const isSelected = selectedRole === c.id;
+                      const isSelected = selectedRole === c.id || (c.id === 'pho_bi_thu' && selectedRole === ('thu_quy' as any));
                       return (
                         <button
                           key={c.id}

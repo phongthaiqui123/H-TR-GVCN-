@@ -110,7 +110,7 @@ export const StudentRoleModal: React.FC<StudentRoleModalProps> = ({
             <option value="lop_pho_lao_dong">🧹 Lớp phó lao động</option>
             <option value="lop_pho_trat_tu">🛡️ Lớp phó trật tự</option>
             <option value="bi_thu">⭐ Bí thư Chi đoàn / Chi đội</option>
-            <option value="pho_bi_thu">✨ Phó bí thư</option>
+            <option value="pho_bi_thu">💰 Thủ quỹ</option>
           </select>
           <p className="text-[11px] text-slate-500 mt-1">
             {CADRE_ROLES_META[cadreRole]?.description}

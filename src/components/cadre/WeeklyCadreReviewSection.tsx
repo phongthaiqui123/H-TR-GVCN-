@@ -51,7 +51,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const realLopPhoLaoDong = students.find(s => s.cadreRole === 'lop_pho_lao_dong');
   const realLopPhoTratTu = students.find(s => s.cadreRole === 'lop_pho_trat_tu');
   const realBiThu = students.find(s => s.cadreRole === 'bi_thu');
-  const realPhoBiThu = students.find(s => s.cadreRole === 'pho_bi_thu');
+  const realThuQuy = students.find(s => s.cadreRole === 'pho_bi_thu' || (s.cadreRole as any) === 'thu_quy');
 
   // RBAC Permission checks
   const isGVCN = roleSession.category === 'gvcn';
@@ -60,12 +60,12 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const isLopPhoLaoDong = roleSession.category === 'cadre' && roleSession.cadreRole === 'lop_pho_lao_dong';
   const isLopPhoTratTu = roleSession.category === 'cadre' && roleSession.cadreRole === 'lop_pho_trat_tu';
   const isBiThu = roleSession.category === 'cadre' && roleSession.cadreRole === 'bi_thu';
-  const isPhoBiThu = roleSession.category === 'cadre' && roleSession.cadreRole === 'pho_bi_thu';
+  const isThuQuy = roleSession.category === 'cadre' && (roleSession.cadreRole === 'pho_bi_thu' || (roleSession.cadreRole as any) === 'thu_quy');
   const isTeamLeader = roleSession.category === 'to_truong';
   const userTeamName = roleSession.teamName || 'Tổ 1';
 
   // Can this user edit anything?
-  const canEditAny = isGVCN || isLopTruong || isLopPhoHocTap || isLopPhoLaoDong || isLopPhoTratTu || isBiThu || isPhoBiThu || isTeamLeader;
+  const canEditAny = isGVCN || isLopTruong || isLopPhoHocTap || isLopPhoLaoDong || isLopPhoTratTu || isBiThu || isThuQuy || isTeamLeader;
   const isReadOnlyStudent = !canEditAny;
 
   // Granular section permissions
@@ -73,7 +73,8 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   const canEditAcademic = isGVCN || isLopTruong || isLopPhoHocTap;
   const canEditDiscipline = isGVCN || isLopTruong || isLopPhoTratTu;
   const canEditHygiene = isGVCN || isLopTruong || isLopPhoLaoDong;
-  const canEditMovement = isGVCN || isLopTruong || isBiThu || isPhoBiThu;
+  const canEditMovement = isGVCN || isLopTruong || isBiThu;
+  const canEditTreasurer = isGVCN || isLopTruong || isThuQuy;
   const canEditTeam = (teamName: string) => {
     if (isGVCN || isLopTruong) return true;
     if (isTeamLeader && userTeamName === teamName) return true;
@@ -88,7 +89,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
 
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'study' | 'discipline' | 'hygiene' | 'teams' | 'gvcn'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'general' | 'study' | 'discipline' | 'hygiene' | 'treasurer' | 'teams' | 'gvcn'>('all');
 
   // Sync draft when weeklyCadreReview loads
   useEffect(() => {
@@ -105,6 +106,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
     const lptt = stdList.find(s => s.cadreRole === 'lop_pho_trat_tu')?.fullName || 'Lớp phó trật tự';
     const lpld = stdList.find(s => s.cadreRole === 'lop_pho_lao_dong')?.fullName || 'Lớp phó lao động';
     const bt = stdList.find(s => s.cadreRole === 'bi_thu')?.fullName || 'Bí thư Chi đoàn';
+    const tq = stdList.find(s => s.cadreRole === 'pho_bi_thu' || (s.cadreRole as any) === 'thu_quy')?.fullName || 'Thủ quỹ';
 
     const teamsMap: Record<string, WeeklyCadreReviewTeamItem> = {};
     ['Tổ 1', 'Tổ 2', 'Tổ 3', 'Tổ 4', 'Tổ 5'].forEach(tm => {
@@ -136,6 +138,12 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
       sanitationStatus: '',
       movementAssessment: '',
       movementAuthorName: bt,
+      treasurerAssessment: '',
+      treasurerAuthorName: tq,
+      treasurerBalance: '',
+      treasurerIncome: '',
+      treasurerExpense: '',
+      treasurerNotes: '',
       teamAssessments: teamsMap,
       nextWeekGoals: '',
       teacherFeedback: '',
@@ -170,7 +178,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
   };
 
   // Quick suggestions generator
-  const applyQuickTemplate = (field: 'general' | 'academic' | 'discipline' | 'hygiene' | 'goals') => {
+  const applyQuickTemplate = (field: 'general' | 'academic' | 'discipline' | 'hygiene' | 'treasurer' | 'goals') => {
     if (field === 'general') {
       setDraft(prev => ({
         ...prev,
@@ -190,6 +198,15 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
       setDraft(prev => ({
         ...prev,
         hygieneAssessment: `Các tổ thực hiện trực nhật đúng giờ, phòng học sạch sẽ, bảng viết và bàn ghế ngay ngắn. Lớp luôn bảo quản tốt cơ sở vật chất, tắt điện và quạt trước khi ra về.`
+      }));
+    } else if (field === 'treasurer') {
+      setDraft(prev => ({
+        ...prev,
+        treasurerBalance: '1.850.000 VNĐ',
+        treasurerIncome: 'Thu tiền photo tài liệu ôn tập: 45 x 10.000 = 450.000 đ',
+        treasurerExpense: 'Chi tiền photo: 450.000 đ; Mua phấn viết + khăn lau bảng: 65.000 đ',
+        treasurerAssessment: `Tuần ${selectedWeek}, tình hình thu chi quỹ lớp diễn ra công khai, minh bạch. Tất cả các khoản chi đều phục vụ trực tiếp cho hoạt động học tập và sinh hoạt chung của lớp có sự đồng thuận của GVCN và Ban cán sự.`,
+        treasurerNotes: '100% học sinh đã hoàn thành đóng quỹ lớp đầy đủ. Không có bạn nào nợ quỹ.'
       }));
     } else if (field === 'goals') {
       setDraft(prev => ({
@@ -273,7 +290,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
             Đồng bộ theo thực tế phân quyền của lớp
           </span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 text-xs">
           <div className="p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100">
             <span className="text-[10px] uppercase font-extrabold text-indigo-700 block">Lớp trưởng</span>
             <span className="font-bold text-slate-900 truncate block mt-0.5">
@@ -313,6 +330,14 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
             </span>
             <span className="text-[10px] text-slate-500 block">Phong trào Đoàn - Đội</span>
           </div>
+
+          <div className="p-2.5 rounded-xl bg-teal-50/70 border border-teal-100">
+            <span className="text-[10px] uppercase font-extrabold text-teal-700 block">Thủ quỹ</span>
+            <span className="font-bold text-slate-900 truncate block mt-0.5">
+              {realThuQuy?.fullName || 'Chưa phân công'}
+            </span>
+            <span className="text-[10px] text-slate-500 block">Quỹ lớp & Báo cáo thu chi</span>
+          </div>
         </div>
       </div>
 
@@ -324,8 +349,9 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
           { id: 'study', label: '2. Học tập' },
           { id: 'discipline', label: '3. Kỷ luật & Trật tự' },
           { id: 'hygiene', label: '4. Lao động & Vệ sinh' },
-          { id: 'teams', label: '5. Đánh giá 4 Tổ' },
-          { id: 'gvcn', label: '6. Ý kiến GVCN' },
+          { id: 'treasurer', label: '5. Báo cáo Quỹ lớp (Thủ quỹ)' },
+          { id: 'teams', label: '6. Đánh giá 4 Tổ' },
+          { id: 'gvcn', label: '7. Ý kiến GVCN' },
         ].map(t => (
           <button
             key={t.id}
@@ -693,13 +719,155 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
           </div>
         )}
 
-        {/* 5. NHẬN XÉT CỦA TỪNG TỔ TRƯỞNG (TỔ 1, TỔ 2, TỔ 3, TỔ 4, TỔ 5) */}
+        {/* 5. BÁO CÁO THU CHI & QUỸ LỚP (THỦ QUỸ) */}
+        {(activeTab === 'all' || activeTab === 'treasurer') && (
+          <div className="bg-white rounded-2xl border-2 border-teal-200 shadow-xs overflow-hidden transition-all hover:border-teal-300">
+            <div className="p-4 bg-gradient-to-r from-teal-50/70 via-emerald-50/40 to-slate-50 border-b border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-teal-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                  5
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">
+                    <span>Báo cáo Quỹ lớp & Thu - Chi tuần {selectedWeek}</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-100 text-teal-800 border border-teal-200">
+                      Thủ quỹ
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Phụ trách: <strong>{draft.treasurerAuthorName || realThuQuy?.fullName || 'Thủ quỹ'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {canEditTreasurer && (
+                  <button
+                    type="button"
+                    onClick={() => applyQuickTemplate('treasurer')}
+                    className="text-xs font-semibold text-teal-700 hover:text-teal-900 bg-teal-100/70 hover:bg-teal-200/80 px-2.5 py-1 rounded-lg flex items-center gap-1 cursor-pointer transition-colors"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                    <span>Mẫu báo cáo quỹ</span>
+                  </button>
+                )}
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                  canEditTreasurer ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
+                }`}>
+                  {canEditTreasurer ? 'Được phép nhập/sửa' : 'Chỉ đọc'}
+                </span>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Financial Summary Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-xl bg-teal-50/60 border border-teal-200">
+                  <label className="block text-[11px] font-bold text-teal-900 uppercase tracking-wider mb-1">
+                    💰 Số dư quỹ hiện tại:
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.treasurerBalance || ''}
+                    onChange={(e) => setDraft({ ...draft, treasurerBalance: e.target.value })}
+                    disabled={!canEditTreasurer}
+                    placeholder={canEditTreasurer ? "VD: 1.850.000 VNĐ" : "Chưa cập nhật"}
+                    className={`w-full px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${
+                      canEditTreasurer
+                        ? 'bg-white border-teal-300 focus:border-teal-600 text-teal-950 focus:ring-1 focus:ring-teal-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200">
+                  <label className="block text-[11px] font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                    📈 Thu trong tuần {selectedWeek}:
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.treasurerIncome || ''}
+                    onChange={(e) => setDraft({ ...draft, treasurerIncome: e.target.value })}
+                    disabled={!canEditTreasurer}
+                    placeholder={canEditTreasurer ? "VD: Thu photo 450.000 đ" : "Không có"}
+                    className={`w-full px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${
+                      canEditTreasurer
+                        ? 'bg-white border-emerald-300 focus:border-emerald-600 text-emerald-950 focus:ring-1 focus:ring-emerald-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  />
+                </div>
+
+                <div className="p-3 rounded-xl bg-rose-50/60 border border-rose-200">
+                  <label className="block text-[11px] font-bold text-rose-900 uppercase tracking-wider mb-1">
+                    📉 Chi trong tuần {selectedWeek}:
+                  </label>
+                  <input
+                    type="text"
+                    value={draft.treasurerExpense || ''}
+                    onChange={(e) => setDraft({ ...draft, treasurerExpense: e.target.value })}
+                    disabled={!canEditTreasurer}
+                    placeholder={canEditTreasurer ? "VD: Chi phấn & nước lau 65.000 đ" : "Không có"}
+                    className={`w-full px-3 py-1.5 text-sm font-bold rounded-lg border transition-all ${
+                      canEditTreasurer
+                        ? 'bg-white border-rose-300 focus:border-rose-600 text-rose-950 focus:ring-1 focus:ring-rose-500'
+                        : 'bg-slate-50 border-slate-200 text-slate-700'
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Detailed Financial Notes & Fund Management */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Báo cáo chi tiết tình hình quỹ lớp, nội dung các khoản thu/chi:
+                </label>
+                <textarea
+                  rows={3}
+                  value={draft.treasurerAssessment || ''}
+                  onChange={(e) => setDraft({ ...draft, treasurerAssessment: e.target.value })}
+                  disabled={!canEditTreasurer}
+                  placeholder={canEditTreasurer
+                    ? "Ghi nhận chi tiết các khoản thu, chi cụ thể, mục đích sử dụng quỹ và tình hình quản lý quỹ lớp..."
+                    : "Chưa có báo cáo chi tiết quỹ lớp từ Thủ quỹ."}
+                  className={`w-full p-3.5 text-sm rounded-xl border transition-all leading-relaxed ${
+                    canEditTreasurer
+                      ? 'bg-white border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 text-slate-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 cursor-not-allowed'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Ghi chú & Nhắc nhở thành viên nộp các khoản quỹ:
+                </label>
+                <input
+                  type="text"
+                  value={draft.treasurerNotes || ''}
+                  onChange={(e) => setDraft({ ...draft, treasurerNotes: e.target.value })}
+                  disabled={!canEditTreasurer}
+                  placeholder={canEditTreasurer
+                    ? "VD: 100% học sinh đã hoàn thành nộp quỹ. Đề nghị các bạn bảo quản tốt cơ sở vật chất lớp..."
+                    : "Không có ghi chú."}
+                  className={`w-full px-3.5 py-2.5 text-sm rounded-xl border transition-all ${
+                    canEditTreasurer
+                      ? 'bg-white border-slate-300 focus:border-teal-600 focus:ring-2 focus:ring-teal-500/20 text-slate-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-700 cursor-not-allowed'
+                  }`}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 6. NHẬN XÉT CỦA TỪNG TỔ TRƯỞNG (TỔ 1, TỔ 2, TỔ 3, TỔ 4, TỔ 5) */}
         {(activeTab === 'all' || activeTab === 'teams') && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 bg-gradient-to-r from-slate-50 to-amber-50/30 border-b border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-amber-600 text-white flex items-center justify-center font-bold text-xs">
-                  5
+                  6
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900">
@@ -846,13 +1014,13 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
           </div>
         )}
 
-        {/* 6. Ý KIẾN CHỈ ĐẠO CỦA GIÁO VIÊN CHỦ NHIỆM */}
+        {/* 7. Ý KIẾN CHỈ ĐẠO CỦA GIÁO VIÊN CHỦ NHIỆM */}
         {(activeTab === 'all' || activeTab === 'gvcn') && (
           <div className="bg-white rounded-2xl border-2 border-indigo-200 shadow-sm overflow-hidden">
             <div className="p-4 bg-gradient-to-r from-indigo-50 to-violet-50 border-b border-indigo-100 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-600 to-violet-700 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                  6
+                  7
                 </div>
                 <div>
                   <h3 className="font-bold text-sm text-slate-900 flex items-center gap-1.5">

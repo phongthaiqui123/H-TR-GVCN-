@@ -102,6 +102,33 @@
         "rank": { "type": "string" }
       },
       "required": ["scoreId", "classId", "studentId", "week", "finalScore"]
+    },
+    "StudentComments": {
+      "title": "StudentComments",
+      "description": "Weekly comments and feedback for class members",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string" },
+        "weekNumber": { "type": "number" },
+        "updatedAt": { "type": "string" },
+        "comments": { "type": "object" }
+      },
+      "required": ["classId", "weekNumber"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "Classroom and student evaluation notification",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "classId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string" },
+        "read": { "type": "boolean" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "timestamp"]
     }
   },
   "firestore": {
@@ -128,6 +155,14 @@
     "/weeklyScores/{scoreId}": {
       "schema": "WeeklyScore",
       "description": "Weekly aggregated scores"
+    },
+    "/student_comments/{commentDocId}": {
+      "schema": "StudentComments",
+      "description": "Comments and evaluation for students by week"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "Notifications and alerts for class events and comments"
     }
   }
 }

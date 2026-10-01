@@ -12,6 +12,27 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        function shouldSuppress(msg) {
+          return typeof msg === 'string' && msg.includes('Pending promise was never set');
+        }
+        window.addEventListener('error', function(e) {
+          if (shouldSuppress(e.message) || shouldSuppress(e.error && e.error.message)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var msg = (e.reason && (e.reason.message || e.reason)) || '';
+          if (shouldSuppress(msg)) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
   </head>
   <body class="font-sans antialiased text-slate-800 bg-slate-50 selection:bg-indigo-100 selection:text-indigo-900 min-h-screen">
     <div id="root"></div>

@@ -408,9 +408,28 @@ export const LoginPage: React.FC = () => {
     }
   };
 
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+
   const handleGoogleLogin = async () => {
+    if (isGoogleSigningIn || loading) return;
+    setIsGoogleSigningIn(true);
     clearError();
-    await signInWithGoogle(selectedRole);
+    try {
+      await signInWithGoogle(selectedRole);
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
+  };
+
+  const handleGvcnGoogleLogin = async () => {
+    if (isGoogleSigningIn || loading) return;
+    setIsGoogleSigningIn(true);
+    clearError();
+    try {
+      await signInWithGoogle('gvcn');
+    } finally {
+      setIsGoogleSigningIn(false);
+    }
   };
 
   return (
@@ -815,9 +834,9 @@ export const LoginPage: React.FC = () => {
                   ) : (
                     <button
                       type="button"
-                      onClick={() => signInWithGoogle('gvcn')}
-                      disabled={loading}
-                      className="w-full py-2.5 px-4 rounded-xl border-2 border-indigo-200 bg-white hover:bg-indigo-50/70 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:border-indigo-400 cursor-pointer"
+                      onClick={handleGvcnGoogleLogin}
+                      disabled={loading || isGoogleSigningIn}
+                      className="w-full py-2.5 px-4 rounded-xl border-2 border-indigo-200 bg-white hover:bg-indigo-50/70 text-slate-800 font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs hover:border-indigo-400 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                         <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -826,7 +845,7 @@ export const LoginPage: React.FC = () => {
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
                       <span className="text-indigo-950 font-bold">
-                        Đăng nhập GVCN bằng Google (Dành cho phongthaiqui@gmail.com)
+                        {isGoogleSigningIn ? 'Đang mở đăng nhập Google...' : 'Đăng nhập GVCN bằng Google (Dành cho phongthaiqui@gmail.com)'}
                       </span>
                     </button>
                   )}
@@ -1490,8 +1509,8 @@ export const LoginPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleGoogleLogin}
-                  disabled={loading}
-                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
+                  disabled={loading || isGoogleSigningIn}
+                  className="w-full py-2.5 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24">
                     <path
@@ -1511,7 +1530,7 @@ export const LoginPage: React.FC = () => {
                       d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                     />
                   </svg>
-                  <span>Tiếp tục với Google</span>
+                  <span>{isGoogleSigningIn ? 'Đang mở đăng nhập Google...' : 'Tiếp tục với Google'}</span>
                 </button>
               </div>
             )}

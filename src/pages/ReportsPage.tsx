@@ -515,6 +515,10 @@ export const ReportsPage: React.FC = () => {
           criteria={criteria}
           teams={scopedTeams}
           selectedWeek={selectedWeek}
+          classId={currentClass?.classId}
+          className={currentClass?.className}
+          schoolName={currentClass?.schoolName}
+          teacherName={teacherName}
         />
       )}
 

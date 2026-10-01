@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Student, 
   CompetitionEvent, 
@@ -6,6 +6,12 @@ import {
   Team 
 } from '../../types';
 import { batchAddCompetitionEvents } from '../../services/firestoreService';
+import { 
+  exportElementToPdf, 
+  exportHtmlToPdf,
+  downloadStandaloneHtmlSlip, 
+  executeBrowserPrint 
+} from '../../utils/slipPrintUtils';
 import { 
   AlertTriangle, 
   FileText, 
@@ -58,6 +64,239 @@ export interface StudentViolationSummary {
   violationsList: StudentViolationGroup[];
 }
 
+function escapeHtml(str: string | number | undefined | null): string {
+  if (str === undefined || str === null) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function buildStudentSlipHtml(
+  item: StudentViolationSummary,
+  options: {
+    className: string;
+    schoolName: string;
+    teacherName: string;
+    weekText: string;
+  }
+): string {
+  const { student, violationsList, totalViolationsCount, totalPenaltyPoints } = item;
+  const { className, schoolName, teacherName, weekText } = options;
+
+  const rowsHtml = violationsList.length > 0 ? violationsList.map((v, i) => {
+    const datesStr = v.dates.length > 0 
+      ? `<div style="font-size: 11px; color: #475569; margin-top: 1px;">Thời điểm: ${escapeHtml(v.dates.join(', '))}</div>` 
+      : '';
+    const notesStr = v.notes.length > 0 
+      ? `<div style="font-size: 11px; color: #334155; font-style: italic; margin-top: 2px;">Chi tiết: ${escapeHtml(v.notes.join('; '))}</div>` 
+      : '';
+
+    return `
+      <tr>
+        <td style="text-align: center; font-weight: bold; padding: 6px 8px; border: 1px solid #475569;">${i + 1}</td>
+        <td style="padding: 6px 10px; border: 1px solid #475569;">
+          <strong style="color: #0f172a; font-size: 13px;">${escapeHtml(v.criterionName)}</strong>
+          ${datesStr}
+          ${notesStr}
+        </td>
+        <td style="text-align: center; font-weight: bold; color: #be123c; padding: 6px 8px; border: 1px solid #475569;">${v.count} lượt</td>
+        <td style="text-align: right; padding: 6px 8px; border: 1px solid #475569;">${v.penaltyPerTime}đ</td>
+        <td style="text-align: right; font-weight: bold; color: #b91c1c; padding: 6px 8px; border: 1px solid #475569;">${v.totalPenalty}đ</td>
+      </tr>
+    `;
+  }).join('') : `
+    <tr>
+      <td colspan="5" style="text-align: center; padding: 14px; color: #047857; font-weight: bold; border: 1px solid #475569;">
+        Không ghi nhận lỗi vi phạm nào trong kỳ theo dõi. Học sinh chấp hành nề nếp thi đua rất tốt!
+      </td>
+    </tr>
+  `;
+
+  return `
+    <div class="slip-card">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+        <div style="text-align: left; width: 48%;">
+          <div style="font-size: 11.5px; font-weight: bold; text-transform: uppercase; color: #334155;">${escapeHtml(schoolName)}</div>
+          <div style="font-size: 12px; color: #475569; margin-top: 2px;">Lớp: <strong style="font-size: 13px; color: #0f172a;">${escapeHtml(className)}</strong></div>
+        </div>
+        <div style="text-align: right; width: 48%;">
+          <div style="font-size: 11px; font-weight: bold; text-transform: uppercase;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+          <div style="font-size: 11px; font-style: italic; color: #334155; margin-top: 1px;">Độc lập - Tự do - Hạnh phúc</div>
+          <div style="font-size: 10px; color: #94a3b8; margin-top: -2px;">---------------</div>
+        </div>
+      </div>
+
+      <div style="text-align: center; margin: 10px 0 12px 0; border-bottom: 2px solid #0f172a; padding-bottom: 8px;">
+        <div style="font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #0f172a;">
+          PHIẾU THÔNG BÁO TÌNH HÌNH VI PHẠM THI ĐUA NỀ NẾP
+        </div>
+        <div style="font-size: 12px; color: #475569; margin-top: 3px;">
+          Thời gian theo dõi: <strong>${escapeHtml(weekText)}</strong> • Năm học 2026 - 2027
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; font-size: 12.5px;">
+        <div>Học sinh: <strong style="font-size: 14px; text-transform: uppercase; color: #0f172a;">${escapeHtml(student.fullName)}</strong></div>
+        <div>STT: <strong>${student.studentNumber}</strong> &nbsp;|&nbsp; <strong>${escapeHtml(student.teamName)}</strong></div>
+        <div>Mã HS: <strong>${escapeHtml(student.studentCode || '---')}</strong></div>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 12.5px;">
+        <thead>
+          <tr style="background-color: #f1f5f9; font-weight: bold;">
+            <th style="border: 1px solid #475569; padding: 6px 8px; width: 40px; text-align: center;">STT</th>
+            <th style="border: 1px solid #475569; padding: 6px 10px; text-align: left;">Tên lỗi vi phạm</th>
+            <th style="border: 1px solid #475569; padding: 6px 8px; width: 105px; text-align: center;">Số lượt vi phạm</th>
+            <th style="border: 1px solid #475569; padding: 6px 8px; width: 85px; text-align: right;">Trừ / lượt</th>
+            <th style="border: 1px solid #475569; padding: 6px 8px; width: 100px; text-align: right;">Tổng điểm trừ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+          <tr style="background-color: #fff1f2; font-weight: bold; font-size: 13px;">
+            <td colspan="2" style="border: 1px solid #475569; padding: 7px 10px; text-align: right; text-transform: uppercase;">TỔNG CỘNG:</td>
+            <td style="border: 1px solid #475569; padding: 7px 8px; text-align: center; color: #be123c;">${totalViolationsCount} lượt</td>
+            <td style="border: 1px solid #475569; padding: 7px 8px; text-align: right; color: #64748b;">-</td>
+            <td style="border: 1px solid #475569; padding: 7px 8px; text-align: right; color: #b91c1c;">${totalPenaltyPoints} điểm</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 12px; background-color: #fdfdfe; font-size: 12px; margin-bottom: 12px; line-height: 1.5;">
+        <strong>Ý kiến nhắc nhở của Giáo viên chủ nhiệm:</strong>
+        <div style="color: #334155; font-style: italic; margin-top: 2px;">
+          ${totalViolationsCount > 0 
+            ? 'Đề nghị em nghiêm túc rút kinh nghiệm, chấn chỉnh các thiếu sót nêu trên, không tái phạm trong các tuần tiếp theo để cải thiện điểm rèn luyện thi đua. Kính mong Quý Phụ huynh cùng phối hợp theo dõi, nhắc nhở em.' 
+            : 'Em thực hiện rất tốt các quy định nề nếp của lớp và nhà trường. Đề nghị tiếp tục duy trì và phát huy.'}
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; text-align: center; font-size: 12px; margin-top: 8px;">
+        <div style="width: 45%;">
+          <div style="font-weight: bold;">Ý KIẾN & CHỮ KÝ PHỤ HUYNH</div>
+          <div style="font-size: 10.5px; color: #64748b; font-style: italic;">(Ký và ghi rõ họ tên)</div>
+          <div style="height: 48px;"></div>
+        </div>
+        <div style="width: 45%;">
+          <div style="font-size: 11px; font-style: italic; color: #475569;">Ngày ...... tháng ...... năm 2026</div>
+          <div style="font-weight: bold; text-transform: uppercase;">GIÁO VIÊN CHỦ NHIỆM</div>
+          <div style="height: 48px;"></div>
+          <div style="font-weight: bold; font-size: 13px;">${escapeHtml(teacherName)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function printHtmlContent(title: string, bodyContent: string) {
+  try {
+    let iframe = document.getElementById('gvcn-print-frame') as HTMLIFrameElement;
+    if (!iframe) {
+      iframe = document.createElement('iframe');
+      iframe.id = 'gvcn-print-frame';
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      document.body.appendChild(iframe);
+    }
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    doc.open();
+    doc.write(`<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 12mm 15mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body {
+      font-family: 'Times New Roman', Times, serif;
+      margin: 0;
+      padding: 0;
+      color: #0f172a;
+      background: #ffffff;
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .slip-container {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .slip-card {
+      border: 1.5px solid #1e293b;
+      border-radius: 8px;
+      padding: 16px 20px;
+      background: #ffffff;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-after: always;
+      break-after: page;
+      margin-bottom: 24px;
+    }
+    .slip-card:last-child {
+      page-break-after: auto;
+      break-after: auto;
+      margin-bottom: 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th, td {
+      border: 1px solid #475569;
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+    th {
+      background-color: #f1f5f9;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="slip-container">
+    ${bodyContent}
+  </div>
+</body>
+</html>`);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (e) {
+        console.warn('Iframe print error, falling back to window.print():', e);
+        window.print();
+      }
+    }, 350);
+  } catch (err) {
+    console.error('Print failure:', err);
+    window.print();
+  }
+}
+
 export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = ({
   students,
   events,
@@ -83,6 +322,9 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
 
   // Individual modal preview for printing slip
   const [selectedStudentForSlip, setSelectedStudentForSlip] = useState<StudentViolationSummary | null>(null);
+  const modalSlipRef = useRef<HTMLDivElement>(null);
+  const [printStatusNotice, setPrintStatusNotice] = useState<string | null>(null);
+  const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
 
   // Seed sample violations for instant testing
   const handleSeedSampleViolations = async () => {
@@ -212,13 +454,14 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
       );
     }
 
-    // Group events by studentId
+    // Match events for each student
     const studentEventsMap = new Map<string, CompetitionEvent[]>();
-    filteredViolationEvents.forEach(e => {
-      if (!studentEventsMap.has(e.studentId)) {
-        studentEventsMap.set(e.studentId, []);
-      }
-      studentEventsMap.get(e.studentId)!.push(e);
+    targetStudents.forEach(st => {
+      const studentEvts = filteredViolationEvents.filter(e => 
+        (e.studentId && st.studentId && e.studentId === st.studentId) ||
+        (e.studentName && st.fullName && e.studentName.trim().toLowerCase() === st.fullName.trim().toLowerCase())
+      );
+      studentEventsMap.set(st.studentId, studentEvts);
     });
 
     const summaries: StudentViolationSummary[] = [];
@@ -252,12 +495,20 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
         const grp = criterionGroups.get(name)!;
         grp.count += 1;
         grp.totalPenalty += penaltyPer;
-        if (evt.createdAt) {
+        
+        const eventDateStr = evt.createdAt || evt.date;
+        if (eventDateStr) {
           try {
-            const d = new Date(evt.createdAt);
-            grp.dates.push(`${d.toLocaleDateString('vi-VN')} (${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`);
+            const d = new Date(eventDateStr);
+            const dateFormatted = !isNaN(d.getTime()) 
+              ? d.toLocaleDateString('vi-VN') 
+              : eventDateStr;
+            const timeFormatted = (!isNaN(d.getTime()) && evt.createdAt && evt.createdAt.includes('T'))
+              ? ` (${d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })})`
+              : '';
+            grp.dates.push(`${dateFormatted}${timeFormatted}`);
           } catch {
-            grp.dates.push(evt.createdAt);
+            grp.dates.push(String(eventDateStr));
           }
         }
         if (evt.note && evt.note.trim()) {
@@ -416,9 +667,101 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
     document.body.removeChild(link);
   };
 
-  // Print all slips
+  // Download single slip as crystal-clear PDF (using clean HTML generator with zero oklch colors)
+  const handleDownloadSinglePdf = async (item: StudentViolationSummary) => {
+    setIsExportingPdf(true);
+    setPrintStatusNotice('Đang tạo file PDF...');
+    const weekText = filterWeek === 'all' ? 'Toàn bộ năm học' : `Tuần ${filterWeek}`;
+    const cardHtml = buildStudentSlipHtml(item, {
+      className,
+      schoolName,
+      teacherName,
+      weekText
+    });
+
+    const ok = await exportHtmlToPdf(
+      cardHtml,
+      `Phieu_Bao_Vi_Pham_STT${item.student.studentNumber}_${item.student.fullName.replace(/\s+/g, '_')}`,
+      msg => setPrintStatusNotice(msg)
+    );
+
+    setIsExportingPdf(false);
+    setPrintStatusNotice(ok ? 'Đã tải xong file PDF thành công!' : 'Có lỗi khi tạo PDF, bạn có thể tải bản in HTML.');
+    setTimeout(() => setPrintStatusNotice(null), 4000);
+  };
+
+  // Download standalone HTML printable slip
+  const handleDownloadSingleHtml = (item: StudentViolationSummary) => {
+    const weekText = filterWeek === 'all' ? 'Toàn bộ năm học' : `Tuần ${filterWeek}`;
+    const cardHtml = buildStudentSlipHtml(item, {
+      className,
+      schoolName,
+      teacherName,
+      weekText
+    });
+
+    downloadStandaloneHtmlSlip(
+      `Phiếu báo vi phạm - ${item.student.fullName} - Lớp ${className}`,
+      cardHtml,
+      `Ban_In_Phieu_Bao_STT${item.student.studentNumber}_${item.student.fullName.replace(/\s+/g, '_')}`
+    );
+  };
+
+  // Print slip with intelligent sandbox fallback
+  const handlePrintSlipWithFallback = async (item: StudentViolationSummary) => {
+    setPrintStatusNotice(null);
+    const result = executeBrowserPrint();
+    
+    if (!result.success || result.blockedBySandbox) {
+      setPrintStatusNotice('Trình duyệt đang chặn cửa sổ in trong khung iframe. Đang tự động tải về file PDF cho bạn...');
+      setTimeout(() => setPrintStatusNotice(null), 6000);
+      await handleDownloadSinglePdf(item);
+    }
+  };
+
+  // Download all slips as printable HTML
+  const handleDownloadAllHtml = () => {
+    const violators = studentViolationSummaries.filter(s => s.totalViolationsCount > 0);
+    const targetList = violators.length > 0 ? violators : studentViolationSummaries;
+
+    if (targetList.length === 0) {
+      alert('Không có học sinh nào trong danh sách để in.');
+      return;
+    }
+
+    const weekText = filterWeek === 'all' ? 'Toàn bộ năm học' : `Tuần ${filterWeek}`;
+    const allCardsHtml = targetList.map(item => 
+      buildStudentSlipHtml(item, {
+        className,
+        schoolName,
+        teacherName,
+        weekText
+      })
+    ).join('\n');
+
+    downloadStandaloneHtmlSlip(
+      `Danh sách phiếu báo vi phạm - Lớp ${className} (${weekText})`,
+      allCardsHtml,
+      `Ban_In_Tat_Ca_Phieu_Lop_${className}_${filterWeek === 'all' ? 'TongHop' : 'Tuan_' + filterWeek}`
+    );
+  };
+
+  // Print all violation slips with fallback
   const handlePrintAll = () => {
-    window.print();
+    const violators = studentViolationSummaries.filter(s => s.totalViolationsCount > 0);
+    const targetList = violators.length > 0 ? violators : studentViolationSummaries;
+
+    if (targetList.length === 0) {
+      alert('Không có học sinh nào trong danh sách để in.');
+      return;
+    }
+
+    const result = executeBrowserPrint();
+    if (!result.success || result.blockedBySandbox) {
+      setPrintStatusNotice('Trình duyệt đang chặn lệnh in trong khung iframe. Đang tự động tải file in toàn bộ lớp về máy cho bạn...');
+      setTimeout(() => setPrintStatusNotice(null), 6000);
+      handleDownloadAllHtml();
+    }
   };
 
   return (
@@ -469,12 +812,21 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
             </button>
 
             <button
+              onClick={handleDownloadAllHtml}
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+              title="Tải tệp HTML in tất cả phiếu của lớp (mở bằng trình duyệt để in toàn bộ không bao giờ bị chặn)"
+            >
+              <FileText className="w-4 h-4 text-indigo-600" />
+              <span>Tải bản in cả lớp</span>
+            </button>
+
+            <button
               onClick={handlePrintAll}
               className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
               title="In tất cả phiếu thông báo vi phạm"
             >
               <Printer className="w-4 h-4" />
-              <span>In danh sách</span>
+              <span>In tất cả phiếu</span>
             </button>
           </div>
         </div>
@@ -736,12 +1088,22 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
                     <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                       <button
                         type="button"
+                        onClick={() => handleDownloadSinglePdf(item)}
+                        className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                        title="Tải ngay tệp PDF phiếu báo vi phạm của học sinh này"
+                      >
+                        <Download className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Tải PDF</span>
+                      </button>
+
+                      <button
+                        type="button"
                         onClick={() => setSelectedStudentForSlip(item)}
                         className="px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                        title="Xem và in phiếu báo vi phạm cá nhân"
+                        title="Xem trước, in và xuất PDF phiếu báo"
                       >
                         <FileText className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>Phiếu báo</span>
+                        <span>Xem & In</span>
                       </button>
 
                       <button
@@ -811,10 +1173,10 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
 
       {/* 5. Modal: Printable Individual Student Violation Notice Slip */}
       {selectedStudentForSlip && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-7 space-y-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 print:p-0 print:static print:bg-transparent print:backdrop-blur-none">
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200 p-6 sm:p-7 space-y-6 print:max-h-none print:overflow-visible print:border-none print:shadow-none print:p-0 print:rounded-none">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4 print:hidden">
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-base font-black text-slate-900">
@@ -829,8 +1191,15 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
               </button>
             </div>
 
+            {printStatusNotice && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 font-medium flex items-center gap-2 animate-fade-in print:hidden">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{printStatusNotice}</span>
+              </div>
+            )}
+
             {/* Printable Slip Paper Preview */}
-            <div id="printable-individual-slip" className="p-6 bg-slate-50/70 border-2 border-slate-300 rounded-2xl space-y-5 text-slate-800">
+            <div ref={modalSlipRef} id="printable-individual-slip" className="p-6 bg-white border-2 border-slate-300 rounded-2xl space-y-5 text-slate-800 print:bg-white print:border-slate-800 print:p-4 print:rounded-none">
               {/* Header */}
               <div className="text-center space-y-1 border-b border-slate-300 pb-3">
                 <p className="text-xs uppercase font-bold text-slate-600 tracking-wider">
@@ -935,7 +1304,7 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
             </div>
 
             {/* Modal actions */}
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-2 print:hidden">
               <button
                 type="button"
                 onClick={() => setSelectedStudentForSlip(null)}
@@ -947,12 +1316,12 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
               <button
                 type="button"
                 onClick={() => handleCopySingleNotification(selectedStudentForSlip)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
               >
                 {copiedStudentId === selectedStudentForSlip.student.studentId ? (
                   <>
                     <Check className="w-4 h-4 text-emerald-600" />
-                    <span>Đã chép tin nhắn</span>
+                    <span>Đã chép</span>
                   </>
                 ) : (
                   <>
@@ -964,11 +1333,33 @@ export const StudentViolationsReport: React.FC<StudentViolationsReportProps> = (
 
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => handleDownloadSingleHtml(selectedStudentForSlip)}
+                className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Tải tệp HTML in ấn chuẩn có thể mở và in từ bất kỳ máy tính hay điện thoại nào"
+              >
+                <FileText className="w-4 h-4 text-indigo-600" />
+                <span>Tải file in (HTML)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDownloadSinglePdf(selectedStudentForSlip)}
+                disabled={isExportingPdf}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                title="Tải trực tiếp phiếu báo vi phạm định dạng PDF chuẩn A4 sắc nét"
+              >
+                <Download className="w-4 h-4" />
+                <span>{isExportingPdf ? 'Đang tạo PDF...' : 'Tải file PDF (In / Lưu)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handlePrintSlipWithFallback(selectedStudentForSlip)}
                 className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="Thực hiện lệnh in trực tiếp"
               >
                 <Printer className="w-4 h-4" />
-                <span>In phiếu này</span>
+                <span>In trực tiếp</span>
               </button>
             </div>
           </div>

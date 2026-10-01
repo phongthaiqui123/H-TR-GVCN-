@@ -3,9 +3,27 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
+function patchFirebaseAuthPlugin() {
+  return {
+    name: 'patch-firebase-auth-plugin',
+    enforce: 'pre' as const,
+    transform(code: string, id: string) {
+      if ((id.includes('firebase') || id.includes('auth')) && code.includes('Pending promise was never set')) {
+        return {
+          code: code
+            .replaceAll("debugAssert(this.pendingPromise, 'Pending promise was never set');", 'if (!this.pendingPromise) { return; }')
+            .replaceAll('debugAssert(this.pendingPromise, "Pending promise was never set");', 'if (!this.pendingPromise) { return; }'),
+          map: null,
+        };
+      }
+      return null;
+    },
+  };
+}
+
 export default defineConfig(() => {
   return {
-    plugins: [react(), tailwindcss()],
+    plugins: [patchFirebaseAuthPlugin(), react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

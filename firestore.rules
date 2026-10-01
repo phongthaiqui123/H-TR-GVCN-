@@ -132,6 +132,21 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // Student Comments
+    match /student_comments/{commentDocId} {
+      allow read, write: if true;
+    }
+
+    // App Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+
+    // Weekly Cadre Reviews
+    match /weekly_cadre_reviews/{reviewId} {
+      allow read, write: if true;
+    }
+
     // Audit Logs - Append-only for security
     match /auditLogs/{logId} {
       allow read, create: if true;

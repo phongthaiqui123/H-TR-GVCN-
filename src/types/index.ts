@@ -738,12 +738,15 @@ export interface AiWeeklyInsight {
 
 export interface AppNotification {
   id: string;
+  classId?: string;
   title: string;
   message: string;
-  type: 'warning' | 'info' | 'success' | 'alert';
+  type: 'warning' | 'info' | 'success' | 'alert' | 'comment';
   read: boolean;
   timestamp: string;
   actionTab?: string;
   link?: string;
+  studentId?: string;
+  week?: number;
 }
 

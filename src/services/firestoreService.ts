@@ -36,7 +36,8 @@ import {
   SchoolYear,
   StudentObservation,
   ImportPreviewStudent,
-  WeeklyCadreReview
+  WeeklyCadreReview,
+  AppNotification
 } from '../types';
 import { DEFAULT_THRESHOLDS, DEFAULT_STARTING_SCORE, calculateRank } from '../utils/constants';
 import { 
@@ -2111,6 +2112,286 @@ export async function getClassWeeklyCadreReviews(classId: string): Promise<Weekl
     return [];
   }
 }
+
+// ==========================================
+// --- NHẬN XÉT CÁC THÀNH VIÊN LỚP (STUDENT COMMENTS) ---
+// ==========================================
+
+export async function getStudentCommentsByWeek(
+  classId: string, 
+  weekNumber: number
+): Promise<Record<string, { comment: string; updatedAt: string; status?: string }>> {
+  const result: Record<string, { comment: string; updatedAt: string; status?: string }> = {};
+
+  // 1. Try local cache first for instant response
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(`student_comments_${classId}_w${weekNumber}`);
+      if (cached) {
+        Object.assign(result, JSON.parse(cached));
+      }
+    } catch (e) {
+      console.warn('Error reading local student comments:', e);
+    }
+  }
+
+  // 2. Fetch from Firestore
+  try {
+    const docId = `comments_${classId}_w${weekNumber}`;
+    const snap = await getDoc(doc(db, 'student_comments', docId));
+    if (snap.exists()) {
+      const data = snap.data();
+      if (data && data.comments) {
+        Object.assign(result, data.comments);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem(`student_comments_${classId}_w${weekNumber}`, JSON.stringify(result));
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Error fetching student comments from Firestore:', err);
+  }
+
+  return result;
+}
+
+export async function saveSingleStudentComment(
+  classId: string,
+  weekNumber: number,
+  studentId: string,
+  comment: string,
+  status: string = 'approved',
+  extra?: { authorName?: string; studentName?: string; teamName?: string; period?: string }
+): Promise<void> {
+  const docId = `comments_${classId}_w${weekNumber}`;
+  const now = new Date().toISOString();
+
+  // 1. Update local cache
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const cached = JSON.parse(localStorage.getItem(`student_comments_${classId}_w${weekNumber}`) || '{}');
+      cached[studentId] = { 
+        comment, 
+        updatedAt: now, 
+        status,
+        authorName: extra?.authorName || 'GVCN',
+        studentName: extra?.studentName,
+        teamName: extra?.teamName
+      };
+      localStorage.setItem(`student_comments_${classId}_w${weekNumber}`, JSON.stringify(cached));
+    } catch {}
+  }
+
+  // 2. Save to Firestore with clean object merge
+  try {
+    const ref = doc(db, 'student_comments', docId);
+    const snap = await getDoc(ref);
+    const existingComments = (snap.exists() && snap.data()?.comments) ? snap.data().comments : {};
+    existingComments[studentId] = {
+      comment,
+      updatedAt: now,
+      status,
+      authorName: extra?.authorName || 'GVCN',
+      studentName: extra?.studentName || '',
+      teamName: extra?.teamName || ''
+    };
+
+    await setDoc(ref, {
+      classId,
+      weekNumber,
+      updatedAt: now,
+      comments: existingComments
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not save single student comment to Firestore:', err);
+  }
+
+  // 3. Automatically add notification
+  try {
+    const stdName = extra?.studentName ? `em ${extra.studentName}` : 'thành viên';
+    await saveAppNotification({
+      id: `notif_comment_${classId}_${studentId}_${Date.now()}`,
+      classId,
+      title: `Nhận xét mới cho ${stdName}`,
+      message: `${extra?.authorName || 'GVCN'} đã ghi nhận xét tuần ${weekNumber}: "${comment.slice(0, 70)}${comment.length > 70 ? '...' : ''}"`,
+      type: 'comment' as any,
+      read: false,
+      timestamp: 'Vừa xong',
+      actionTab: 'reports',
+      studentId,
+      week: weekNumber
+    });
+  } catch (notifErr) {
+    console.warn('Error pushing notification for comment:', notifErr);
+  }
+}
+
+export async function saveBatchStudentComments(
+  classId: string,
+  weekNumber: number,
+  commentsMap: Record<string, { comment: string; updatedAt?: string; status?: string; studentName?: string; teamName?: string }>,
+  authorName: string = 'GVCN'
+): Promise<void> {
+  const docId = `comments_${classId}_w${weekNumber}`;
+  const now = new Date().toISOString();
+
+  const formattedMap: Record<string, { comment: string; updatedAt: string; status: string; studentName?: string; teamName?: string; authorName?: string }> = {};
+  Object.entries(commentsMap).forEach(([stId, data]) => {
+    formattedMap[stId] = {
+      comment: data.comment,
+      updatedAt: data.updatedAt || now,
+      status: data.status || 'approved',
+      studentName: data.studentName || '',
+      teamName: data.teamName || '',
+      authorName
+    };
+  });
+
+  // 1. Save to localStorage
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const cached = JSON.parse(localStorage.getItem(`student_comments_${classId}_w${weekNumber}`) || '{}');
+      Object.assign(cached, formattedMap);
+      localStorage.setItem(`student_comments_${classId}_w${weekNumber}`, JSON.stringify(cached));
+    } catch {}
+  }
+
+  // 2. Save to Firestore
+  try {
+    const ref = doc(db, 'student_comments', docId);
+    const snap = await getDoc(ref);
+    const existingComments = (snap.exists() && snap.data()?.comments) ? snap.data().comments : {};
+    Object.assign(existingComments, formattedMap);
+
+    await setDoc(ref, {
+      classId,
+      weekNumber,
+      updatedAt: now,
+      comments: existingComments
+    }, { merge: true });
+  } catch (err) {
+    console.warn('Could not save batch student comments to Firestore:', err);
+  }
+
+  // 3. Automatically add notification
+  try {
+    const count = Object.keys(formattedMap).length;
+    await saveAppNotification({
+      id: `notif_batch_comments_${classId}_w${weekNumber}_${Date.now()}`,
+      classId,
+      title: `Đã lưu nhận xét cho ${count} thành viên lớp`,
+      message: `${authorName} đã hoàn thành và lưu nhận xét nề nếp thi đua Tuần ${weekNumber}.`,
+      type: 'success',
+      read: false,
+      timestamp: 'Vừa xong',
+      actionTab: 'reports',
+      week: weekNumber
+    });
+  } catch (notifErr) {
+    console.warn('Error pushing batch notification:', notifErr);
+  }
+}
+
+// ==========================================
+// --- THÔNG BÁO LỚP HỌC (APP NOTIFICATIONS) ---
+// ==========================================
+
+export async function getClassNotifications(classId: string): Promise<AppNotification[]> {
+  const result: AppNotification[] = [];
+
+  // Try localStorage first
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(`app_notifications_${classId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch {}
+  }
+
+  // Fetch from Firestore
+  try {
+    const q = query(
+      collection(db, 'notifications'), 
+      where('classId', '==', classId)
+    );
+    const snap = await getDocs(q);
+    snap.forEach(d => {
+      result.push(d.data() as AppNotification);
+    });
+    result.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
+  } catch (err) {
+    console.warn('Error fetching notifications from Firestore:', err);
+  }
+
+  // If empty, return standard helpful default notifications
+  if (result.length === 0) {
+    const defaultNotifs: AppNotification[] = [
+      {
+        id: 'default_1',
+        classId,
+        title: 'Chào mừng bạn đến với hệ thống GVCN',
+        message: 'Hệ thống đã sẵn sàng theo dõi nề nếp thi đua, nhận xét thành viên và xếp hạng.',
+        type: 'info',
+        read: false,
+        timestamp: 'Hôm nay',
+        actionTab: 'dashboard'
+      }
+    ];
+    return defaultNotifs;
+  }
+
+  return result;
+}
+
+export async function saveAppNotification(notif: AppNotification): Promise<void> {
+  const classId = notif.classId || 'default';
+
+  // 1. Update localStorage
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const key = `app_notifications_${classId}`;
+      const cached: AppNotification[] = JSON.parse(localStorage.getItem(key) || '[]');
+      // Prepend and limit to 30 notifications
+      const updated = [notif, ...cached.filter(n => n.id !== notif.id)].slice(0, 30);
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+  }
+
+  // 2. Save to Firestore
+  try {
+    await setDoc(doc(db, 'notifications', notif.id), notif, { merge: true });
+  } catch (err) {
+    console.warn('Could not save notification to Firestore:', err);
+  }
+}
+
+export async function markAllNotificationsReadInDb(classId: string): Promise<void> {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const key = `app_notifications_${classId}`;
+      const cached: AppNotification[] = JSON.parse(localStorage.getItem(key) || '[]');
+      const updated = cached.map(n => ({ ...n, read: true }));
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+  }
+
+  try {
+    const q = query(collection(db, 'notifications'), where('classId', '==', classId), where('read', '==', false));
+    const snap = await getDocs(q);
+    const batch = writeBatch(db);
+    snap.forEach(d => {
+      batch.update(d.ref, { read: true });
+    });
+    await batch.commit();
+  } catch (err) {
+    console.warn('Error marking notifications read:', err);
+  }
+}
+
 
 
 

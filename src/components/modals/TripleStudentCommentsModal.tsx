@@ -9,7 +9,8 @@ import {
   MessageSquare, 
   CheckCircle2, 
   User,
-  ShieldCheck
+  ShieldCheck,
+  Save
 } from 'lucide-react';
 import { useClassData } from '../../hooks/useClassData';
 import { StudentWithScore } from '../../types';
@@ -31,9 +32,10 @@ export const TripleStudentCommentsModal: React.FC<TripleStudentCommentsModalProp
   onClose,
   student
 }) => {
-  const { currentClass, selectedWeek, observations } = useClassData();
+  const { currentClass, selectedWeek, observations, saveSingleComment } = useClassData();
   const [period, setPeriod] = useState<string>(`Tuần ${selectedWeek}`);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [comments, setComments] = useState<TripleComments | null>(null);
   const [selectedType, setSelectedType] = useState<'concise' | 'balanced' | 'encouraging'>('balanced');
   const [editedText, setEditedText] = useState('');
@@ -41,6 +43,29 @@ export const TripleStudentCommentsModal: React.FC<TripleStudentCommentsModalProp
   const [savedSuccess, setSavedSuccess] = useState(false);
 
   if (!isOpen || !student) return null;
+
+  const handleSaveComment = async () => {
+    if (!editedText.trim() || !student) return;
+    setSaving(true);
+    try {
+      await saveSingleComment(
+        student.studentId,
+        editedText.trim(),
+        'approved',
+        {
+          studentName: student.fullName,
+          teamName: student.teamName,
+          period
+        }
+      );
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch (err) {
+      console.error('Failed to save student comment:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -274,10 +299,19 @@ export const TripleStudentCommentsModal: React.FC<TripleStudentCommentsModalProp
             <button
               onClick={handleCopy}
               disabled={!editedText.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copied ? 'Đã sao chép' : 'Sao chép'}</span>
+            </button>
+
+            <button
+              onClick={handleSaveComment}
+              disabled={!editedText.trim() || saving}
+              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {savedSuccess ? <CheckCircle2 className="w-4 h-4 text-white" /> : <Save className="w-4 h-4" />}
+              <span>{savedSuccess ? 'Đã lưu & gửi thông báo!' : saving ? 'Đang lưu...' : '💾 Lưu nhận xét vào hồ sơ'}</span>
             </button>
           </div>
         </div>

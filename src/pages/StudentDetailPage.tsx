@@ -28,7 +28,9 @@ import {
   Phone,
   Bookmark,
   Crown,
-  ShieldCheck
+  ShieldCheck,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 import { formatDateVN, CADRE_ROLES_META } from '../utils/constants';
 import { TripleStudentCommentsModal } from '../components/modals/TripleStudentCommentsModal';
@@ -49,7 +51,9 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
     events, 
     allWeeklyScores,
     studentsWithScores,
-    observations
+    observations,
+    studentComments,
+    saveSingleComment
   } = useClassData();
   const { roleSession } = useAuth();
   const isTeamLeader = roleSession.category === 'to_truong';
@@ -109,7 +113,39 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
   const [commentTone, setCommentTone] = useState('Khen ngợi và động viên');
   const [aiComment, setAiComment] = useState('');
   const [loadingComment, setLoadingComment] = useState(false);
+  const [savingComment, setSavingComment] = useState(false);
+  const [savedCommentSuccess, setSavedCommentSuccess] = useState(false);
   const [copiedComment, setCopiedComment] = useState(false);
+
+  // Sync existing saved comment for this student
+  useEffect(() => {
+    if (studentId && studentComments?.[studentId]?.comment) {
+      setAiComment(studentComments[studentId].comment);
+    }
+  }, [studentId, studentComments]);
+
+  const handleSaveAiComment = async () => {
+    if (!aiComment.trim() || !student) return;
+    setSavingComment(true);
+    try {
+      await saveSingleComment(
+        student.studentId,
+        aiComment.trim(),
+        'approved',
+        {
+          studentName: student.fullName,
+          teamName: student.teamName,
+          period: commentType
+        }
+      );
+      setSavedCommentSuccess(true);
+      setTimeout(() => setSavedCommentSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error saving comment in StudentDetailPage:', err);
+    } finally {
+      setSavingComment(false);
+    }
+  };
 
   // Parent Message States
   const [parentTone, setParentTone] = useState('Thân thiện, chân thành');
@@ -652,6 +688,7 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
               />
               <div className="flex items-center justify-end gap-2">
                 <button
+                  type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(aiComment);
                     setCopiedComment(true);
@@ -661,6 +698,16 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
                 >
                   {copiedComment ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                   <span>{copiedComment ? 'Đã sao chép' : 'Sao chép nhận xét'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSaveAiComment}
+                  disabled={savingComment || !aiComment.trim()}
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {savedCommentSuccess ? <CheckCircle2 className="w-3.5 h-3.5 text-white" /> : <Save className="w-3.5 h-3.5" />}
+                  <span>{savedCommentSuccess ? '✓ Đã lưu & gửi thông báo' : savingComment ? 'Đang lưu...' : '💾 Lưu nhận xét vào hồ sơ'}</span>
                 </button>
               </div>
             </div>

@@ -884,7 +884,7 @@ export const WeeklyCadreReviewSection: React.FC<WeeklyCadreReviewSectionProps> =
             </div>
 
             <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {['Tổ 1', 'Tổ 2', 'Tổ 3', 'Tổ 4'].map((tmName) => {
+              {(teams.length > 0 ? teams.map(t => t.teamName) : ['Tổ 1', 'Tổ 2', 'Tổ 3', 'Tổ 4', 'Tổ 5']).map((tmName) => {
                 const item = draft.teamAssessments?.[tmName] || {
                   teamName: tmName,
                   authorName: `Tổ trưởng ${tmName}`,

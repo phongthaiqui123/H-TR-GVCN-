@@ -28,7 +28,12 @@ import {
   Users,
   Trash2,
   Bookmark,
-  Clock
+  Clock,
+  MessageSquare,
+  AlertCircle,
+  AlertTriangle,
+  Info,
+  CheckCircle2
 } from 'lucide-react';
 import { EditTeacherNameModal } from '../modals/EditTeacherNameModal';
 import { ROLE_CONFIGS } from '../../hooks/useAuth';
@@ -69,7 +74,9 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }
     seedFullDemoClasses,
     teacherName, 
     students,
-    isCurrentWeekLocked 
+    isCurrentWeekLocked,
+    notifications: classNotifications,
+    markAllNotificationsAsRead
   } = useClassData();
   const [showClassDropdown, setShowClassDropdown] = useState(false);
   const [showWeekDropdown, setShowWeekDropdown] = useState(false);
@@ -110,48 +117,47 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const notifications = [
-    {
-      id: 'notif-1',
-      type: 'warning',
-      icon: TrendingDown,
-      iconColor: 'text-rose-600 bg-rose-50',
-      title: 'Nguyễn Minh Anh giảm 6 điểm',
-      desc: 'Vi phạm nói chuyện riêng và đi học muộn 2 lần.',
-      time: '15 phút trước',
-      actionTab: 'students',
-    },
-    {
-      id: 'notif-2',
-      type: 'success',
-      icon: TrendingUp,
-      iconColor: 'text-emerald-600 bg-emerald-50',
-      title: 'Trần Gia Bảo tiến bộ +8 điểm',
-      desc: 'Tích cực phát biểu và chuẩn bị bài chu đáo.',
-      time: '1 giờ trước',
-      actionTab: 'students',
-    },
-    {
-      id: 'notif-3',
-      type: 'trophy',
-      icon: Trophy,
-      iconColor: 'text-amber-600 bg-amber-50',
-      title: 'Tổ 2 dẫn đầu thi đua tuần',
-      desc: 'Điểm trung bình tổ đạt 108.2 điểm.',
-      time: '3 giờ trước',
-      actionTab: 'rankings',
-    },
-    {
-      id: 'notif-4',
-      type: 'ai',
-      icon: Bot,
-      iconColor: 'text-purple-600 bg-purple-50',
-      title: `AI đã phân tích xong tuần ${selectedWeek}`,
-      desc: 'Báo cáo nề nếp và kế hoạch sinh hoạt lớp đã sẵn sàng.',
-      time: 'Hôm nay',
-      actionTab: 'ai',
-    },
-  ];
+  // Build dynamic notifications list from classNotifications and defaults
+  const displayNotifications = React.useMemo(() => {
+    const defaultList = [
+      {
+        id: 'notif-default-1',
+        title: `AI đã tổng hợp dữ liệu tuần ${selectedWeek}`,
+        message: 'Báo cáo nề nếp và nhận xét thi đua các thành viên sẵn sàng xem & xuất.',
+        type: 'info' as const,
+        read: false,
+        timestamp: 'Hôm nay',
+        actionTab: 'reports',
+      }
+    ];
+
+    if (classNotifications && classNotifications.length > 0) {
+      return classNotifications;
+    }
+    return defaultList;
+  }, [classNotifications, selectedWeek]);
+
+  // Update hasUnread based on actual unread notifications
+  useEffect(() => {
+    const unread = displayNotifications.some(n => !n.read);
+    setHasUnread(unread);
+  }, [displayNotifications]);
+
+  const getNotifMeta = (type?: string) => {
+    if (type === 'comment') {
+      return { Icon: MessageSquare, iconColor: 'text-indigo-600 bg-indigo-50 border border-indigo-100' };
+    }
+    if (type === 'success') {
+      return { Icon: CheckCircle2, iconColor: 'text-emerald-600 bg-emerald-50 border border-emerald-100' };
+    }
+    if (type === 'warning') {
+      return { Icon: AlertTriangle, iconColor: 'text-amber-600 bg-amber-50 border border-amber-100' };
+    }
+    if (type === 'alert') {
+      return { Icon: AlertCircle, iconColor: 'text-rose-600 bg-rose-50 border border-rose-100' };
+    }
+    return { Icon: Bell, iconColor: 'text-sky-600 bg-sky-50 border border-sky-100' };
+  };
 
   const handleCreateDemoData = async () => {
     setIsResetting(true);
@@ -553,14 +559,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
                     <div className="flex items-center gap-2">
                       <Bell className="w-4 h-4 text-indigo-600" />
-                      <h4 className="font-bold text-sm text-slate-900">Thông báo & Cảnh báo</h4>
+                      <h4 className="font-bold text-sm text-slate-900">Thông báo & Nhận xét</h4>
                     </div>
-                    <span className="text-[11px] font-semibold text-slate-400">4 tin mới</span>
+                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {displayNotifications.length} thông báo
+                    </span>
                   </div>
 
                   <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                    {notifications.map((n) => {
-                      const IconComponent = n.icon;
+                    {displayNotifications.map((n) => {
+                      const { Icon, iconColor } = getNotifMeta(n.type);
                       return (
                         <div
                           key={n.id}
@@ -570,17 +578,21 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }
                               onNavigateTab(n.actionTab);
                             }
                           }}
-                          className="p-3 rounded-2xl bg-slate-50 hover:bg-indigo-50/50 border border-slate-100 hover:border-indigo-100 transition-colors cursor-pointer flex items-start gap-3"
+                          className={`p-3 rounded-2xl border transition-colors cursor-pointer flex items-start gap-3 ${
+                            n.read 
+                              ? 'bg-slate-50/70 border-slate-100 hover:bg-indigo-50/40 hover:border-indigo-100' 
+                              : 'bg-indigo-50/40 border-indigo-200 hover:bg-indigo-50/70 shadow-2xs'
+                          }`}
                         >
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${n.iconColor}`}>
-                            <IconComponent className="w-4 h-4" />
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${iconColor}`}>
+                            <Icon className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                               <h5 className="font-bold text-xs text-slate-900 truncate">{n.title}</h5>
-                              <span className="text-[10px] text-slate-400 shrink-0">{n.time}</span>
+                              <span className="text-[10px] text-slate-400 shrink-0">{n.timestamp}</span>
                             </div>
-                            <p className="text-[11px] text-slate-600 leading-snug mt-0.5">{n.desc}</p>
+                            <p className="text-[11px] text-slate-600 leading-snug mt-0.5 line-clamp-2">{n.message || (n as any).desc}</p>
                           </div>
                         </div>
                       );
@@ -588,9 +600,16 @@ export const Header: React.FC<HeaderProps> = ({ onNavigateTab, onSelectStudent }
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 text-center">
-                    <span className="text-[11px] text-indigo-600 font-semibold hover:underline cursor-pointer">
-                      Đánh dấu tất cả là đã đọc
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        markAllNotificationsAsRead();
+                        setHasUnread(false);
+                      }}
+                      className="text-[11px] text-indigo-600 font-bold hover:underline cursor-pointer bg-transparent border-none"
+                    >
+                      ✓ Đánh dấu tất cả là đã đọc
+                    </button>
                   </div>
                 </div>
               </>

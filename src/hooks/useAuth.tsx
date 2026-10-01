@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { 
   auth, 
   googleProvider, 
@@ -250,6 +250,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const isGoogleSigningInRef = useRef<boolean>(false);
 
   // App Role State
   const [appRole, setAppRoleState] = useState<AppLoginRole>(() => {
@@ -534,6 +535,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async (role: AppLoginRole = 'gvcn') => {
+    if (isGoogleSigningInRef.current) {
+      console.warn('Google sign-in already in progress, ignoring duplicate call');
+      return;
+    }
+    isGoogleSigningInRef.current = true;
     try {
       setError(null);
       setLoading(true);
@@ -593,10 +599,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (
         err?.code === 'auth/popup-closed-by-user' ||
         err?.message?.includes('popup-closed-by-user') ||
-        err?.code === 'auth/cancelled-popup-request'
+        err?.code === 'auth/cancelled-popup-request' ||
+        err?.message?.includes('Pending promise was never set')
       ) {
         // User closed or dismissed the popup voluntarily; do not treat as an error
-        console.info('Google Sign-In popup closed by user.');
+        console.info('Google Sign-In popup closed or cancelled by user.');
         setError(null);
       } else if (err?.code === 'auth/popup-blocked') {
         console.warn('Google Sign-In popup blocked by browser:', err);
@@ -606,6 +613,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setError(err?.message || 'Đăng nhập Google thất bại');
       }
     } finally {
+      isGoogleSigningInRef.current = false;
       setLoading(false);
     }
   };

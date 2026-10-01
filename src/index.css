@@ -1,1 +1,61 @@
 @import "tailwindcss";
+
+@media print {
+  /* Hide all non-printable application shells and controls */
+  nav,
+  header,
+  aside,
+  footer,
+  button,
+  .print-hidden,
+  .no-print,
+  [role="navigation"] {
+    display: none !important;
+  }
+
+  /* Reset body and root backgrounds for clean white print */
+  html,
+  body,
+  #root {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+
+  /* Reset modal fixed positioning and backdrop during print */
+  .fixed.inset-0 {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    display: block !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  /* Allow modal content to expand naturally on paper without scroll clipping */
+  .max-h-\[90vh\],
+  .max-h-screen,
+  .overflow-y-auto {
+    max-height: none !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  /* Printable individual slip styling */
+  #printable-individual-slip,
+  .printable-slip-target {
+    border: 1.5px solid #1e293b !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    padding: 12mm !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    display: block !important;
+  }
+}

@@ -20,7 +20,8 @@ import {
   ClassBackupData,
   StudentTransferRecord,
   StudentObservation,
-  WeeklyCadreReview
+  WeeklyCadreReview,
+  AppNotification
 } from '../types';
 import { 
   getTeacherClasses, 
@@ -73,7 +74,13 @@ import {
   createSchoolYear,
   archiveClass,
   getWeeklyCadreReview,
-  saveWeeklyCadreReview
+  saveWeeklyCadreReview,
+  getStudentCommentsByWeek,
+  saveSingleStudentComment,
+  saveBatchStudentComments,
+  getClassNotifications,
+  saveAppNotification,
+  markAllNotificationsReadInDb
 } from '../services/firestoreService';
 import {
   normalizeCriteriaOrders,
@@ -198,6 +205,21 @@ interface ClassDataContextType {
   transferStudentToClass: (studentId: string, toClassId: string, reason: string) => Promise<void>;
   exportBackupJson: () => Promise<void>;
   restoreFromBackup: (backup: ClassBackupData) => Promise<void>;
+  studentComments: Record<string, { comment: string; updatedAt: string; status?: string; authorName?: string; studentName?: string; teamName?: string }>;
+  studentCommentsLoading: boolean;
+  saveSingleComment: (
+    studentId: string, 
+    comment: string, 
+    status?: string, 
+    extra?: { authorName?: string; studentName?: string; teamName?: string; period?: string }
+  ) => Promise<void>;
+  saveBatchComments: (
+    commentsMap: Record<string, { comment: string; updatedAt?: string; status?: string; studentName?: string; teamName?: string }>,
+    authorName?: string
+  ) => Promise<void>;
+  notifications: AppNotification[];
+  addAppNotification: (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
 }
 
 const ClassDataContext = createContext<ClassDataContextType | undefined>(undefined);
@@ -216,6 +238,9 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [observations, setObservations] = useState<StudentObservation[]>([]);
   const [weeklyCadreReview, setWeeklyCadreReview] = useState<WeeklyCadreReview | null>(null);
   const [cadreReviewLoading, setCadreReviewLoading] = useState<boolean>(false);
+  const [studentComments, setStudentComments] = useState<Record<string, { comment: string; updatedAt: string; status?: string; authorName?: string; studentName?: string; teamName?: string }>>({});
+  const [studentCommentsLoading, setStudentCommentsLoading] = useState<boolean>(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [lastBatchResult, setLastBatchResult] = useState<{ eventIds: string[]; count: number; criterionName: string; score: number } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [filterMode, setFilterMode] = useState<'all' | 'real' | 'demo'>('all');
@@ -408,6 +433,41 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       setWeeklyCadreReview(null);
     }
   }, [currentClass?.classId, selectedWeek]);
+
+  // Load student comments for current class and selected week
+  useEffect(() => {
+    if (currentClass?.classId && selectedWeek) {
+      setStudentCommentsLoading(true);
+      getStudentCommentsByWeek(currentClass.classId, selectedWeek)
+        .then(comments => {
+          setStudentComments(comments);
+        })
+        .catch(err => {
+          console.warn('Error loading student comments:', err);
+          setStudentComments({});
+        })
+        .finally(() => {
+          setStudentCommentsLoading(false);
+        });
+    } else {
+      setStudentComments({});
+    }
+  }, [currentClass?.classId, selectedWeek]);
+
+  // Load notifications for current class
+  useEffect(() => {
+    if (currentClass?.classId) {
+      getClassNotifications(currentClass.classId)
+        .then(notifs => {
+          setNotifications(notifs);
+        })
+        .catch(err => {
+          console.warn('Error loading class notifications:', err);
+        });
+    } else {
+      setNotifications([]);
+    }
+  }, [currentClass?.classId]);
 
   // Filter scores for selected week
   const weeklyScores = useMemo(() => {
@@ -1394,6 +1454,109 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const saveCadreReview = async (review: WeeklyCadreReview) => {
     await saveWeeklyCadreReview(review);
     setWeeklyCadreReview(review);
+
+    // Also push a notification when review is saved / submitted / approved
+    if (currentClass?.classId) {
+      try {
+        const statusLabel = review.status === 'approved' 
+          ? 'GVCN đã phê duyệt nhận xét tuần' 
+          : review.status === 'submitted'
+          ? 'Ban cán sự đã nộp nhận xét tuần'
+          : 'Đã lưu bản nháp nhận xét tuần';
+        await saveAppNotification({
+          id: `notif_cadre_review_${currentClass.classId}_w${review.weekNumber}_${Date.now()}`,
+          classId: currentClass.classId,
+          title: `${statusLabel} ${review.weekNumber}`,
+          message: `${review.updatedBy || 'Ban cán sự'} đã cập nhật nhận xét và báo cáo thi đua của lớp.`,
+          type: review.status === 'approved' ? 'success' : 'info',
+          read: false,
+          timestamp: 'Vừa xong',
+          actionTab: 'reports',
+          week: review.weekNumber
+        });
+        const updatedNotifs = await getClassNotifications(currentClass.classId);
+        setNotifications(updatedNotifs);
+      } catch (err) {
+        console.warn('Could not post cadre review notification:', err);
+      }
+    }
+  };
+
+  const saveSingleComment = async (
+    studentId: string, 
+    comment: string, 
+    status: string = 'approved',
+    extra?: { authorName?: string; studentName?: string; teamName?: string; period?: string }
+  ) => {
+    if (!currentClass?.classId) return;
+    const author = extra?.authorName || (appRole === 'gvcn' ? (teacherName || 'GVCN') : 'Ban cán sự');
+    await saveSingleStudentComment(
+      currentClass.classId, 
+      selectedWeek, 
+      studentId, 
+      comment, 
+      status, 
+      { ...extra, authorName: author }
+    );
+    // Update local state immediately
+    const now = new Date().toISOString();
+    setStudentComments(prev => ({
+      ...prev,
+      [studentId]: {
+        comment,
+        updatedAt: now,
+        status,
+        authorName: author,
+        studentName: extra?.studentName,
+        teamName: extra?.teamName
+      }
+    }));
+    // Refresh notifications
+    const updatedNotifs = await getClassNotifications(currentClass.classId);
+    setNotifications(updatedNotifs);
+  };
+
+  const saveBatchComments = async (
+    commentsMap: Record<string, { comment: string; updatedAt?: string; status?: string; studentName?: string; teamName?: string }>,
+    authorName?: string
+  ) => {
+    if (!currentClass?.classId) return;
+    const author = authorName || (appRole === 'gvcn' ? (teacherName || 'GVCN') : 'Ban cán sự');
+    await saveBatchStudentComments(currentClass.classId, selectedWeek, commentsMap, author);
+    // Update local state immediately
+    const formatted: Record<string, any> = {};
+    const now = new Date().toISOString();
+    Object.entries(commentsMap).forEach(([stId, val]) => {
+      formatted[stId] = {
+        ...val,
+        updatedAt: val.updatedAt || now,
+        status: val.status || 'approved',
+        authorName: author
+      };
+    });
+    setStudentComments(prev => ({ ...prev, ...formatted }));
+    // Refresh notifications
+    const updatedNotifs = await getClassNotifications(currentClass.classId);
+    setNotifications(updatedNotifs);
+  };
+
+  const addAppNotification = async (notif: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+    if (!currentClass?.classId) return;
+    const fullNotif: AppNotification = {
+      ...notif,
+      id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      classId: currentClass.classId,
+      timestamp: 'Vừa xong',
+      read: false
+    };
+    await saveAppNotification(fullNotif);
+    setNotifications(prev => [fullNotif, ...prev.filter(n => n.id !== fullNotif.id)].slice(0, 30));
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    if (!currentClass?.classId) return;
+    await markAllNotificationsReadInDb(currentClass.classId);
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
   const toggleStudentAccountStatus = async (accountId: string, isActive: boolean) => {
@@ -2051,6 +2214,13 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       transferStudentToClass,
       exportBackupJson,
       restoreFromBackup,
+      studentComments,
+      studentCommentsLoading,
+      saveSingleComment,
+      saveBatchComments,
+      notifications,
+      addAppNotification,
+      markAllNotificationsAsRead,
     }}>
       {children}
     </ClassDataContext.Provider>

@@ -300,14 +300,24 @@ export interface WeeklyScore {
   isDemo?: boolean;
 }
 
-export type RankCategory = 'XUẤT SẮC' | 'TỐT' | 'HOÀN THÀNH TỐT' | 'CẦN CỐ GẮNG' | 'CẦN HỖ TRỢ';
+export type RankCategory = 
+  | 'TỐT' 
+  | 'KHÁ' 
+  | 'ĐẠT' 
+  | 'CHƯA ĐẠT'
+  | 'XUẤT SẮC' 
+  | 'HOÀN THÀNH TỐT' 
+  | 'CẦN CỐ GẮNG' 
+  | 'CẦN HỖ TRỢ';
 
 export interface ScoreThresholds {
-  excellent: number;   // >= 120 (5 sao)
-  good: number;        // 110 - 119 (4 sao)
-  wellDone: number;    // 100 - 109 (3 sao)
-  needEffort: number;  // 90 - 99 (2 sao)
-  // < 90 is needSupport (1 sao / cảnh báo)
+  good: number;        // >= 100: Tốt
+  fair: number;        // 80 đến dưới 100: Khá
+  pass: number;        // 50 đến dưới 80: Đạt
+  // < 50: Chưa đạt
+  excellent?: number;
+  wellDone?: number;
+  needEffort?: number;
 }
 
 export interface StudentWithScore extends Student {

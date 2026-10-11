@@ -526,7 +526,11 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       if (trendDiff > 1) trend = 'up';
       else if (trendDiff < -1) trend = 'down';
 
-      const rankInfo = calculateRank(finalScore, DEFAULT_THRESHOLDS);
+      const weekViolationsCount = studentWeekEvents.filter(e => e.score < 0).length;
+      const rankInfo = calculateRank(finalScore, DEFAULT_THRESHOLDS, {
+        violationsCount: weekViolationsCount,
+        period: 'week'
+      });
 
       return {
         ...std,
@@ -648,7 +652,11 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
     // Recalculate and update weeklyScore in memory
     const updatedWeeklyScore = (allWeeklyScores.find(s => s.studentId === studentId && s.week === selectedWeek)?.finalScore || currentClass.startingScore) + score;
-    const rankInfo = calculateRank(updatedWeeklyScore, DEFAULT_THRESHOLDS);
+    const currentWeekViolations = events.filter(e => e.studentId === studentId && e.week === selectedWeek && e.score < 0).length + (score < 0 ? 1 : 0);
+    const rankInfo = calculateRank(updatedWeeklyScore, DEFAULT_THRESHOLDS, {
+      violationsCount: currentWeekViolations,
+      period: 'week'
+    });
 
     setAllWeeklyScores(prev => {
       const exists = prev.find(s => s.studentId === studentId && s.week === selectedWeek);
@@ -761,7 +769,11 @@ export const ClassDataProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         const exists = updated.find(s => s.studentId === studentId && s.week === selectedWeek);
         const currentScore = exists ? exists.finalScore : currentClass.startingScore;
         const newScore = currentScore + score;
-        const rankInfo = calculateRank(newScore, DEFAULT_THRESHOLDS);
+        const currentViolations = events.filter(e => e.studentId === studentId && e.week === selectedWeek && e.score < 0).length + (score < 0 ? 1 : 0);
+        const rankInfo = calculateRank(newScore, DEFAULT_THRESHOLDS, {
+          violationsCount: currentViolations,
+          period: 'week'
+        });
 
         if (exists) {
           updated = updated.map(s => (s.studentId === studentId && s.week === selectedWeek) ? {

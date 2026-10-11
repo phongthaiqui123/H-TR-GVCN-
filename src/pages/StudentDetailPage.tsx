@@ -32,7 +32,7 @@ import {
   Save,
   CheckCircle2
 } from 'lucide-react';
-import { formatDateVN, CADRE_ROLES_META } from '../utils/constants';
+import { formatDateVN, CADRE_ROLES_META, normalizeRankCategory } from '../utils/constants';
 import { TripleStudentCommentsModal } from '../components/modals/TripleStudentCommentsModal';
 import { DraftParentMessageModal } from '../components/modals/DraftParentMessageModal';
 import { QuickObservationModal } from '../components/modals/QuickObservationModal';
@@ -319,9 +319,19 @@ export const StudentDetailPage: React.FC<StudentDetailPageProps> = ({ studentId,
               </div>
             </div>
             <div className="border-l border-slate-200 pl-4">
-              <span className={`text-xs font-black px-2.5 py-1 rounded-full border ${studentScoreInfo?.stars && studentScoreInfo.stars >= 4 ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
-                {studentScoreInfo?.rankCategory || 'TỐT'}
-              </span>
+              {(() => {
+                const normCat = normalizeRankCategory(studentScoreInfo?.rankCategory);
+                const badgeStyle = 
+                  normCat === 'TỐT' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  normCat === 'KHÁ' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                  normCat === 'ĐẠT' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                  'bg-rose-50 text-rose-700 border-rose-200';
+                return (
+                  <span className={`text-xs font-black px-2.5 py-1 rounded-full border ${badgeStyle}`}>
+                    {normCat}
+                  </span>
+                );
+              })()}
               <div className="text-xs text-amber-500 font-bold mt-1">
                 {'⭐'.repeat(studentScoreInfo?.stars || 4)}
               </div>

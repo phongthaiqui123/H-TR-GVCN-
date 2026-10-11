@@ -25,7 +25,7 @@ interface AiWeeklyInsightCardProps {
 export const AiWeeklyInsightCard: React.FC<AiWeeklyInsightCardProps> = ({
   onSelectStudent
 }) => {
-  const { currentClass, selectedWeek, studentsWithScores, teamSummaries, events } = useClassData();
+  const { currentClass, selectedWeek, studentsWithScores, teamSummaries, events, weeklyCadreReview } = useClassData();
   const [insight, setInsight] = useState<AiWeeklyInsight | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -81,7 +81,8 @@ export const AiWeeklyInsightCard: React.FC<AiWeeklyInsightCardProps> = ({
             rank: t.rank,
             studentCount: t.studentCount
           })),
-          anomalies
+          anomalies,
+          cadreReview: weeklyCadreReview
         })
       });
 

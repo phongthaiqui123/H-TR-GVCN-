@@ -1,4 +1,4 @@
-import { ClassInfo, Student, WeeklyScore, CompetitionEvent, Criterion, Team } from '../types';
+import { ClassInfo, Student, WeeklyScore, CompetitionEvent, Criterion, Team, WeeklyCadreReview } from '../types';
 import { 
   calculateAverage, 
   detectImprovedStudents, 
@@ -10,7 +10,7 @@ import {
 /**
  * AI Report Service
  * Soạn thảo báo cáo công tác chủ nhiệm tuần 10 mục chuẩn mực sư phạm
- * kết hợp dữ liệu thống kê chính xác và diễn đạt văn phong giáo dục.
+ * kết hợp dữ liệu thống kê chính xác và nhận xét thực tế từ Ban cán sự lớp & Giáo viên chủ nhiệm.
  */
 
 export interface WeeklyReportSummaryData {
@@ -26,6 +26,18 @@ export interface WeeklyReportSummaryData {
   topInfractions: string[];
   leadingTeam: string;
   mostImprovedTeam?: string;
+  cadreReview?: WeeklyCadreReview | null;
+  cadreRemarksSummary?: {
+    general?: string;
+    academic?: string;
+    discipline?: string;
+    hygiene?: string;
+    movement?: string;
+    treasurer?: string;
+    teams?: Array<{ teamName: string; authorName: string; content: string; positiveMembers: string; warningMembers: string }>;
+    nextWeekGoals?: string;
+  };
+  teacherFeedback?: string;
 }
 
 export function compileWeeklyReportData(
@@ -35,7 +47,9 @@ export function compileWeeklyReportData(
   weeklyScores: WeeklyScore[],
   events: CompetitionEvent[],
   criteria: Criterion[],
-  teams: Team[]
+  teams: Team[],
+  cadreReview?: WeeklyCadreReview | null,
+  teacherFeedback?: string
 ): WeeklyReportSummaryData {
   const currentScores = weeklyScores.filter(s => s.week === week);
   const avgScore = calculateAverage(currentScores.map(s => s.finalScore)) || 100;
@@ -82,6 +96,38 @@ export function compileWeeklyReportData(
   const totalStudentDays = (students.length || 35) * 5;
   const attendanceRate = Math.max(90, Math.round(((totalStudentDays - attendanceViolations) / totalStudentDays) * 100));
 
+  // Cadre remarks structured summary
+  let cadreRemarksSummary: WeeklyReportSummaryData['cadreRemarksSummary'] = undefined;
+  if (cadreReview) {
+    const teamsList: Array<{ teamName: string; authorName: string; content: string; positiveMembers: string; warningMembers: string }> = [];
+    if (cadreReview.teamAssessments) {
+      Object.entries(cadreReview.teamAssessments).forEach(([tName, item]) => {
+        if (item) {
+          teamsList.push({
+            teamName: item.teamName || tName,
+            authorName: item.authorName || 'Tổ trưởng',
+            content: item.content || '',
+            positiveMembers: item.positiveMembers || '',
+            warningMembers: item.warningMembers || ''
+          });
+        }
+      });
+    }
+
+    cadreRemarksSummary = {
+      general: cadreReview.generalAssessment,
+      academic: cadreReview.academicAssessment,
+      discipline: cadreReview.disciplineAssessment,
+      hygiene: cadreReview.hygieneAssessment,
+      movement: cadreReview.movementAssessment,
+      treasurer: cadreReview.treasurerAssessment,
+      teams: teamsList,
+      nextWeekGoals: cadreReview.nextWeekGoals
+    };
+  }
+
+  const effectiveTeacherFeedback = teacherFeedback || cadreReview?.teacherFeedback || '';
+
   return {
     className: classInfo.className || 'Lớp học',
     schoolYear: classInfo.schoolYear || '2026-2027',
@@ -94,11 +140,17 @@ export function compileWeeklyReportData(
     needAttentionStudents,
     topInfractions,
     leadingTeam,
-    mostImprovedTeam
+    mostImprovedTeam,
+    cadreReview,
+    cadreRemarksSummary,
+    teacherFeedback: effectiveTeacherFeedback
   };
 }
 
 export function generateStandardWeeklyReportTemplate(data: WeeklyReportSummaryData): string {
+  const cr = data.cadreRemarksSummary;
+  const tf = data.teacherFeedback;
+
   return `BÁO CÁO CÔNG TÁC CHỦ NHIỆM TUẦN ${data.week}
 LỚP: ${data.className} - NĂM HỌC: ${data.schoolYear}
 Thời gian: Tuần ${data.week} (Sĩ số: ${data.totalStudents} học sinh)
@@ -107,10 +159,12 @@ Thời gian: Tuần ${data.week} (Sĩ số: ${data.totalStudents} học sinh)
 1. TÌNH HÌNH CHUNG CỦA LỚP
 - Trong tuần ${data.week}, lớp ${data.className} duy trì nề nếp thi đua cơ bản ổn định. Đa số học sinh chấp hành tốt nội quy nhà trường và các quy định của lớp.
 - Không khí học tập nhìn chung nghiêm túc, tinh thần đoàn kết tập thể được phát huy tốt.
+${cr?.general ? `- Đánh giá chung từ Ban cán sự lớp: "${cr.general}"` : ''}
 
 2. TÌNH HÌNH CHUYÊN CẦN VÀ GIỜ GIẤC
 - Tỷ lệ chuyên cần toàn lớp đạt khoảng ${data.attendanceRate}%.
 - Học sinh cơ bản đi học đúng giờ, tham gia đầy đủ các buổi truy bài 15 phút đầu giờ.
+${cr?.discipline ? `- Ghi nhận từ Lớp phó trật tự / nề nếp: "${cr.discipline}"` : ''}
 
 3. KẾT QUẢ THI ĐUA VÀ XẾP HẠNG CÁC TỔ
 - Điểm thi đua trung bình toàn lớp: ${data.avgScore} điểm.
@@ -118,36 +172,40 @@ Thời gian: Tuần ${data.week} (Sĩ số: ${data.totalStudents} học sinh)
 ${data.mostImprovedTeam ? `- Tổ có tiến bộ nổi bật nhất: ${data.mostImprovedTeam}.` : ''}
 - Sự cạnh tranh điểm số giữa các tổ diễn ra lành mạnh, tích cực.
 
-4. TUYÊN DƯƠNG HỌC SINH TIÊU BIỂU XUẤT SẮC
+4. PHẢN ÁNH THỰC TẾ TỪ BAN CÁN SỰ & CÁC TỔ TRƯỞNG
+${cr?.academic ? `- Tình hình học tập (Lớp phó học tập): ${cr.academic}` : '- Học tập: Đa số học sinh hoàn thành bài vở trước khi đến lớp.'}
+${cr?.hygiene ? `- Lao động, vệ sinh (Lớp phó lao động): ${cr.hygiene}` : '- Vệ sinh lớp học và khu vực phân công sạch sẽ, đúng giờ.'}
+${cr?.movement ? `- Phong trào Đoàn - Đội (Bí thư): ${cr.movement}` : '- Đoàn viên, đội viên tham gia tích cực các hoạt động tập thể.'}
+${cr?.teams && cr.teams.length > 0 ? `* Nhận xét chi tiết từ các Tổ trưởng:
+${cr.teams.map(t => `  + ${t.teamName}: ${t.content || 'Nề nếp tốt'}${t.positiveMembers ? ` | Biểu dương: ${t.positiveMembers}` : ''}${t.warningMembers ? ` | Cần cố gắng: ${t.warningMembers}` : ''}`).join('\n')}` : ''}
+
+5. TUYÊN DƯƠNG HỌC SINH TIÊU BIỂU XUẤT SẮC
 ${data.topStudents.length > 0 
   ? data.topStudents.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n') 
   : '  Chưa có dữ liệu xếp hạng tuần này.'}
 
-5. BIỂU DƯƠNG HỌC SINH CÓ TIẾN BỘ VƯỢT BẬC
+6. BIỂU DƯƠNG HỌC SINH CÓ TIẾN BỘ VƯỢT BẬC
 ${data.improvedStudents.length > 0 
   ? data.improvedStudents.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n') 
   : '  Tất cả các học sinh đều duy trì phong độ ổn định so với tuần trước.'}
 
-6. NHỮNG HỌC SINH CẦN QUAN TÂM, NHẮC NHỞ & KẾ HOẠCH PHỐI HỢP
+7. NHỮNG HỌC SINH CẦN QUAN TÂM, NHẮC NHỞ & KẾ HOẠCH PHỐI HỢP
 ${data.needAttentionStudents.length > 0 
   ? data.needAttentionStudents.map((s, idx) => `  ${idx + 1}. ${s}`).join('\n') 
   : '  Không có học sinh vi phạm nghiêm trọng trong tuần.'}
 * Kế hoạch: GVCN sẽ gặp riêng trao đổi động viên trong giờ sinh hoạt lớp, đồng thời liên hệ trao đổi thêm với phụ huynh để đồng hành.
 
-7. CÁC TỒN TẠI, VI PHẠM NỀ NẾP NỔI BẬT TRONG TUẦN
+8. CÁC TỒN TẠI, VI PHẠM NỀ NẾP NỔI BẬT TRONG TUẦN
 ${data.topInfractions.length > 0 
   ? data.topInfractions.map((i, idx) => `  - ${i}`).join('\n') 
   : '  - Không có vi phạm đáng kể.'}
 
-8. ĐIỂM SÁNG PHONG TRÀO VÀ HOẠT ĐỘNG TẬP THỂ
-- Các tổ tích cực tham gia phát biểu xây dựng bài trong các tiết học buổi sáng.
-- Vệ sinh phòng học và khu vực được phân công luôn sạch sẽ, gọn gàng.
+9. Ý KIẾN CHỈ ĐẠO & NHẬN XÉT CỦA GIÁO VIÊN CHỦ NHIỆM
+${tf ? `- Ý kiến chỉ đạo từ GVCN: "${tf}"` : '- GVCN ghi nhận sự cố gắng của toàn thể lớp và nỗ lực của Ban cán sự trong việc duy trì kỷ cương nền nếp.'}
 
-9. PHƯƠNG HƯỚNG, MỤC TIÊU VÀ BIỆN PHÁP TRỌNG TÂM TUẦN ${data.week + 1}
+10. PHƯƠNG HƯỚNG, MỤC TIÊU VÀ BIỆN PHÁP TRỌNG TÂM TUẦN ${data.week + 1}
 - Mục tiêu 1: Tiếp tục giữ vững và nâng cao điểm trung bình thi đua toàn lớp lên trên ${Math.round(data.avgScore + 2)} điểm.
 - Mục tiêu 2: Khắc phục triệt để các tồn tại về ${data.topInfractions[0]?.split(':')[0] || 'nề nếp đầu giờ'}.
-- Biện pháp: Phân công ban cán sự lớp theo dõi sát sao, đẩy mạnh phong trào "Đôi bạn cùng tiến" để hỗ trợ các bạn cần cố gắng.
-
-10. LỜI NHẮN GỬI CỦA GIÁO VIÊN CHỦ NHIỆM
-- "Thầy/Cô ghi nhận sự nỗ lực của tất cả các em trong tuần vừa qua. Mỗi điểm cộng, mỗi sự tiến bộ dù nhỏ đều rất đáng tự hào. Chúc cả lớp tuần mới tràn đầy năng lượng và gặt hái thêm nhiều hoa điểm tốt!"`;
+${cr?.nextWeekGoals ? `- Mục tiêu Ban cán sự lớp đề ra: "${cr.nextWeekGoals}"` : '- Biện pháp: Phân công ban cán sự lớp theo dõi sát sao, đẩy mạnh phong trào "Đôi bạn cùng tiến" để hỗ trợ các bạn cần cố gắng.'}
+- Lời nhắn của GVCN: "Thầy/Cô chúc các em luôn giữ vững niềm vui học tập, tinh thần trách nhiệm và gặt hái thêm nhiều hoa điểm tốt trong tuần tới!"`;
 }

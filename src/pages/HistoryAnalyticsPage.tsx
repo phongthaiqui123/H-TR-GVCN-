@@ -14,7 +14,7 @@ import {
   Users,
   ShieldCheck
 } from 'lucide-react';
-import { formatDateVN } from '../utils/constants';
+import { formatDateVN, normalizeRankCategory } from '../utils/constants';
 
 interface HistoryAnalyticsPageProps {
   onSelectStudent: (studentId: string) => void;
@@ -100,19 +100,17 @@ export const HistoryAnalyticsPage: React.FC<HistoryAnalyticsPageProps> = ({ onSe
     .sort((a, b) => b.positiveCount - a.positiveCount)
     .slice(0, 4);
 
-  // Rank category distribution
+  // Rank category distribution (4 mức chuẩn)
   const rankDistribution = useMemo(() => {
-    const counts = {
-      'XUẤT SẮC': 0,
+    const counts: Record<string, number> = {
       'TỐT': 0,
-      'HOÀN THÀNH TỐT': 0,
-      'CẦN CỐ GẮNG': 0,
-      'CẦN HỖ TRỢ': 0,
+      'KHÁ': 0,
+      'ĐẠT': 0,
+      'CHƯA ĐẠT': 0,
     };
     scopedStudentsWithScores.forEach(s => {
-      if (counts[s.rankCategory] !== undefined) {
-        counts[s.rankCategory]++;
-      }
+      const norm = normalizeRankCategory(s.rankCategory);
+      counts[norm] = (counts[norm] || 0) + 1;
     });
     return counts;
   }, [scopedStudentsWithScores]);
@@ -203,34 +201,28 @@ export const HistoryAnalyticsPage: React.FC<HistoryAnalyticsPageProps> = ({ onSe
           📊 Phân bố xếp loại học sinh tuần {selectedWeek}
         </h3>
 
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
           <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
-            <span className="text-[10px] font-bold text-emerald-700 uppercase">Xuất sắc</span>
-            <div className="text-2xl font-black text-emerald-700 mt-1">{rankDistribution['XUẤT SẮC']}</div>
-            <span className="text-[11px] text-emerald-600">⭐⭐⭐⭐⭐</span>
+            <span className="text-[10px] font-bold text-emerald-700 uppercase">Tốt (≥ 100đ, &lt; 3 lỗi)</span>
+            <div className="text-2xl font-black text-emerald-700 mt-1">{rankDistribution['TỐT']}</div>
+            <span className="text-[11px] text-emerald-600">⭐⭐⭐⭐</span>
           </div>
 
           <div className="p-3 bg-blue-50 rounded-2xl border border-blue-100">
-            <span className="text-[10px] font-bold text-blue-700 uppercase">Tốt</span>
-            <div className="text-2xl font-black text-blue-700 mt-1">{rankDistribution['TỐT']}</div>
-            <span className="text-[11px] text-blue-600">⭐⭐⭐⭐</span>
-          </div>
-
-          <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100">
-            <span className="text-[10px] font-bold text-indigo-700 uppercase">Hoàn thành tốt</span>
-            <div className="text-2xl font-black text-indigo-700 mt-1">{rankDistribution['HOÀN THÀNH TỐT']}</div>
-            <span className="text-[11px] text-indigo-600">⭐⭐⭐</span>
+            <span className="text-[10px] font-bold text-blue-700 uppercase">Khá (80 - dưới 100đ)</span>
+            <div className="text-2xl font-black text-blue-700 mt-1">{rankDistribution['KHÁ']}</div>
+            <span className="text-[11px] text-blue-600">⭐⭐⭐</span>
           </div>
 
           <div className="p-3 bg-amber-50 rounded-2xl border border-amber-100">
-            <span className="text-[10px] font-bold text-amber-700 uppercase">Cần cố gắng</span>
-            <div className="text-2xl font-black text-amber-700 mt-1">{rankDistribution['CẦN CỐ GẮNG']}</div>
+            <span className="text-[10px] font-bold text-amber-700 uppercase">Đạt (50 - dưới 80đ)</span>
+            <div className="text-2xl font-black text-amber-700 mt-1">{rankDistribution['ĐẠT']}</div>
             <span className="text-[11px] text-amber-600">⭐⭐</span>
           </div>
 
           <div className="p-3 bg-rose-50 rounded-2xl border border-rose-100">
-            <span className="text-[10px] font-bold text-rose-700 uppercase">Cần hỗ trợ</span>
-            <div className="text-2xl font-black text-rose-700 mt-1">{rankDistribution['CẦN HỖ TRỢ']}</div>
+            <span className="text-[10px] font-bold text-rose-700 uppercase">Chưa đạt (&lt; 50đ)</span>
+            <div className="text-2xl font-black text-rose-700 mt-1">{rankDistribution['CHƯA ĐẠT']}</div>
             <span className="text-[11px] text-rose-600">⚠️</span>
           </div>
         </div>

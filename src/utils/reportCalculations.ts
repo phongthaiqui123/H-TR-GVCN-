@@ -103,7 +103,12 @@ export function calculateWeeklyReportStatistics(
   // Top students (by current score)
   const studentRankList = students.map(st => {
     const score = studentScoreMap.get(st.studentId) ?? 100;
-    const rankInfo = calculateRank(score, DEFAULT_THRESHOLDS);
+    const stWeekEvents = weekEvents.filter(e => e.studentId === st.studentId);
+    const weekViolations = stWeekEvents.filter(e => e.score < 0).length;
+    const rankInfo = calculateRank(score, DEFAULT_THRESHOLDS, {
+      violationsCount: weekViolations,
+      period: 'week'
+    });
     return {
       studentId: st.studentId,
       fullName: st.fullName,
@@ -283,7 +288,12 @@ export function calculateMonthlyReportStatistics(
   // Top students
   const studentRankList = students.map(st => {
     const score = studentMonthAvg.get(st.studentId) ?? 100;
-    const rankInfo = calculateRank(score, DEFAULT_THRESHOLDS);
+    const stMonthEvents = monthEvents.filter(e => e.studentId === st.studentId);
+    const monthViolations = stMonthEvents.filter(e => e.score < 0).length;
+    const rankInfo = calculateRank(score, DEFAULT_THRESHOLDS, {
+      violationsCount: monthViolations,
+      period: 'month'
+    });
     return {
       studentId: st.studentId,
       fullName: st.fullName,

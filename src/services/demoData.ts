@@ -555,7 +555,11 @@ export function generateClassDemoData(
       });
 
       const finalScore = DEFAULT_STARTING_SCORE + totalPositive - totalNegative;
-      const rankInfo = calculateRank(finalScore, DEFAULT_THRESHOLDS);
+      const weekViolations = studentWeekEvents.filter(e => e.score < 0).length;
+      const rankInfo = calculateRank(finalScore, DEFAULT_THRESHOLDS, {
+        violationsCount: weekViolations,
+        period: 'week'
+      });
 
       weeklyScores.push({
         scoreId: `demo_ws_${student.studentId}_w${w}`,

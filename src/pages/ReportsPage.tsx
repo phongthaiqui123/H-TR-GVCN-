@@ -30,7 +30,8 @@ import {
   ArrowLeft,
   Award,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  CalendarRange
 } from 'lucide-react';
 import { ReportGenerationModal } from '../components/reports/ReportGenerationModal';
 import { ReportPreviewEditor } from '../components/reports/ReportPreviewEditor';
@@ -38,10 +39,15 @@ import { BatchCommentsManager } from '../components/reports/BatchCommentsManager
 import { ParentMessagingCenter } from '../components/reports/ParentMessagingCenter';
 import { ReportHistoryList } from '../components/reports/ReportHistoryList';
 import { StudentViolationsReport } from '../components/reports/StudentViolationsReport';
+import { MonthlyStatisticsReport } from '../components/reports/MonthlyStatisticsReport';
 import { exportWeeklyDataToExcel, exportDataToCSV } from '../utils/exportUtils';
 import { calculateWeeklyReportStatistics } from '../utils/reportCalculations';
 
-export const ReportsPage: React.FC = () => {
+interface ReportsPageProps {
+  initialSubTab?: 'editor' | 'monthly_statistics' | 'student_violations' | 'batch_comments' | 'parent_messages' | 'history';
+}
+
+export const ReportsPage: React.FC<ReportsPageProps> = ({ initialSubTab }) => {
   const { 
     currentClass, 
     selectedWeek, 
@@ -83,7 +89,13 @@ export const ReportsPage: React.FC = () => {
   }, [teams, isTeamLeader, myTeamName]);
 
   // Active Tab
-  const [activeTab, setActiveTab] = useState<'editor' | 'student_violations' | 'batch_comments' | 'parent_messages' | 'history'>('editor');
+  const [activeTab, setActiveTab] = useState<'editor' | 'monthly_statistics' | 'student_violations' | 'batch_comments' | 'parent_messages' | 'history'>(initialSubTab || 'editor');
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(initialSubTab);
+    }
+  }, [initialSubTab]);
 
   // Modal generation state
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -308,7 +320,9 @@ export const ReportsPage: React.FC = () => {
               {isTeamLeader ? `Báo cáo tuần ${myTeamName}` : 'Báo cáo tuần'}
             </h3>
             <p className="text-[11px] text-slate-500 leading-tight">
-              {isTeamLeader ? `Tổng kết nề nếp, điểm thi đua và tuyên dương học sinh tiêu biểu của ${myTeamName}.` : 'Tổng kết nề nếp sinh hoạt lớp, xếp hạng tổ, tuyên dương và kế hoạch tuần mới.'}
+              {isTeamLeader 
+                ? `Tổng kết nề nếp, điểm thi đua và tuyên dương học sinh tiêu biểu của ${myTeamName}.` 
+                : 'Tự động tích hợp nhận xét Ban cán sự (Lớp trưởng, LP Học tập, Trật tự, 4 Tổ trưởng) & chỉ đạo của GVCN.'}
             </p>
           </div>
           <div className="mt-3 flex items-center gap-1 text-xs font-bold text-indigo-600">
@@ -330,12 +344,24 @@ export const ReportsPage: React.FC = () => {
               {isTeamLeader ? `Báo cáo tháng ${myTeamName}` : 'Báo cáo tháng'}
             </h3>
             <p className="text-[11px] text-slate-500 leading-tight">
-              Phân tích xu hướng chuyển biến, so sánh tuần đầu vs tuần cuối, ghi nhận nỗ lực.
+              Tổng hợp toàn diện xu hướng chuyển biến, tham khảo các tuần nhận xét của Ban cán sự và định hướng của GVCN trong tháng.
             </p>
           </div>
-          <div className="mt-3 flex items-center gap-1 text-xs font-bold text-blue-600">
-            <span>Tạo báo cáo</span>
-            <span className="text-base group-hover:translate-x-1 transition-transform">→</span>
+          <div className="mt-3 flex items-center justify-between gap-1">
+            <div className="flex items-center gap-1 text-xs font-bold text-blue-600">
+              <span>Tạo báo cáo AI</span>
+              <span className="text-base group-hover:translate-x-1 transition-transform">→</span>
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveTab('monthly_statistics');
+              }}
+              className="text-[11px] px-2 py-1 rounded-lg bg-blue-100 hover:bg-blue-200 text-blue-800 font-bold transition-colors cursor-pointer"
+              title="Xem bảng thống kê 4 tuần và xuất bản ký nhận học sinh"
+            >
+              Ký nhận tháng
+            </button>
           </div>
         </div>
 
@@ -403,10 +429,10 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* Main Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3 overflow-x-auto no-scrollbar">
         <button
           onClick={() => setActiveTab('editor')}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'editor'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -417,8 +443,25 @@ export const ReportsPage: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('monthly_statistics')}
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'monthly_statistics'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <CalendarRange className={`w-4 h-4 ${activeTab === 'monthly_statistics' ? 'text-white' : 'text-indigo-600'}`} />
+          <span>Thống kê theo tháng (Ký nhận)</span>
+          <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+            activeTab === 'monthly_statistics' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700'
+          }`}>
+            MỚI
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('student_violations')}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'student_violations'
               ? 'bg-rose-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -430,7 +473,7 @@ export const ReportsPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('batch_comments')}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'batch_comments'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -442,7 +485,7 @@ export const ReportsPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('parent_messages')}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'parent_messages'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -454,7 +497,7 @@ export const ReportsPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('history')}
-          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer ${
+          className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'history'
               ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -491,7 +534,21 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Tab Content 2: Student Violations Report (Lỗi nào, bao nhiêu lượt vi phạm) */}
+      {/* Tab Content 2: Monthly Statistics Report with Signature Confirmation Sheet */}
+      {activeTab === 'monthly_statistics' && (
+        <MonthlyStatisticsReport
+          students={scopedStudents}
+          events={scopedEvents}
+          criteria={criteria}
+          teams={scopedTeams}
+          allWeeklyScores={allWeeklyScores}
+          currentClass={currentClass}
+          teacherName={teacherName}
+          selectedWeek={selectedWeek}
+        />
+      )}
+
+      {/* Tab Content 3: Student Violations Report (Lỗi nào, bao nhiêu lượt vi phạm) */}
       {activeTab === 'student_violations' && (
         <StudentViolationsReport
           students={scopedStudents}

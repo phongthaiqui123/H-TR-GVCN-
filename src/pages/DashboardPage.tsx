@@ -24,7 +24,8 @@ import {
   Plus,
   FileSpreadsheet,
   UserCheck,
-  FileText
+  FileText,
+  CalendarRange
 } from 'lucide-react';
 import { NavTab } from '../components/layout/Sidebar';
 import { EditTeacherNameModal } from '../components/modals/EditTeacherNameModal';
@@ -167,7 +168,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
     ? Math.max(70, Math.min(100, Math.round(((totalStudents * 5 - attendanceInfractions) / (totalStudents * 5)) * 100))) 
     : 100;
 
-  const needAttentionStudents = studentsWithScores.filter(s => s.trend === 'down' || s.rankCategory === 'CẦN CỐ GẮNG' || s.rankCategory === 'CẦN HỖ TRỢ');
+  const needAttentionStudents = studentsWithScores.filter(s => s.trend === 'down' || s.rankCategory === 'CHƯA ĐẠT' || s.rankCategory === 'ĐẠT' || s.rankCategory === 'CẦN CỐ GẮNG' || s.rankCategory === 'CẦN HỖ TRỢ' || s.currentWeekScore < 80);
   const needAttentionCount = needAttentionStudents.length;
 
   // Top 5 students
@@ -206,7 +207,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
     : 100;
 
   const teamImprovedStudents = teamStudentsWithScores.filter(s => s.trendValue > 0);
-  const teamNeedAttentionStudents = teamStudentsWithScores.filter(s => s.trend === 'down' || s.rankCategory === 'CẦN CỐ GẮNG' || s.rankCategory === 'CẦN HỖ TRỢ');
+  const teamNeedAttentionStudents = teamStudentsWithScores.filter(s => s.trend === 'down' || s.rankCategory === 'CHƯA ĐẠT' || s.rankCategory === 'ĐẠT' || s.rankCategory === 'CẦN CỐ GẮNG' || s.rankCategory === 'CẦN HỖ TRỢ' || s.currentWeekScore < 80);
 
   const teamLeaderStudent = useMemo(() => {
     const norm = normalizeTeamName(teamName);
@@ -650,7 +651,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
         <h3 className="font-bold text-xs uppercase tracking-wider text-slate-500 px-1">
           {isStudent ? 'Khám phá & Tra cứu' : 'Thao tác nhanh'}
         </h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {isStudent ? (
             <>
               {/* Student Action 1: Xếp hạng thi đua */}
@@ -739,7 +740,22 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ onNavigate, onSele
                 <span className="text-[11px] text-slate-500 mt-0.5">Bảng vàng cá nhân & theo tổ</span>
               </button>
 
-              {/* Action 4: Hỏi AI */}
+              {/* Action 4: Thống kê tháng & Ký nhận */}
+              <button
+                onClick={() => onNavigate('monthly-stats')}
+                className="p-4 rounded-3xl bg-white hover:bg-blue-50/60 border border-slate-200 hover:border-blue-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-xs mb-3 group-hover:scale-110 transition-transform">
+                  <CalendarRange className="w-5 h-5" />
+                </div>
+                <span className="font-bold text-sm text-slate-900 block flex items-center gap-1.5">
+                  <span>Thống kê tháng</span>
+                  <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-blue-100 text-blue-700 font-extrabold">MỚI</span>
+                </span>
+                <span className="text-[11px] text-slate-500 mt-0.5">Xuất bảng ký nhận HS</span>
+              </button>
+
+              {/* Action 5: Hỏi AI */}
               <button
                 onClick={() => onNavigate('ai-assistant')}
                 className="p-4 rounded-3xl bg-white hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 shadow-xs transition-all flex flex-col items-start text-left cursor-pointer group"

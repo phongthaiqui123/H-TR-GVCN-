@@ -29,7 +29,8 @@ import {
   ChevronRight,
   Sparkles,
   Loader2,
-  Trophy
+  Trophy,
+  CalendarRange
 } from 'lucide-react';
 
 const MainAppContent: React.FC = () => {
@@ -68,7 +69,7 @@ const MainAppContent: React.FC = () => {
 
   const handleSelectTab = (tab: NavTab) => {
     // Role protection
-    if ((tab === 'settings' || tab === 'reports') && roleSession.category !== 'gvcn') {
+    if ((tab === 'settings' || tab === 'reports' || tab === 'monthly-stats') && roleSession.category !== 'gvcn') {
       setActiveTab('dashboard');
       return;
     }
@@ -128,6 +129,7 @@ const MainAppContent: React.FC = () => {
                 <HistoryAnalyticsPage onSelectStudent={handleSelectStudent} />
               )}
               {activeTab === 'ai-assistant' && <AiAssistantPage />}
+              {activeTab === 'monthly-stats' && <ReportsPage initialSubTab="monthly_statistics" />}
               {activeTab === 'reports' && <ReportsPage />}
               {activeTab === 'settings' && <SettingsPage />}
             </>
@@ -214,6 +216,19 @@ const MainAppContent: React.FC = () => {
 
           {roleSession.category === 'gvcn' && (
             <>
+              <button
+                onClick={() => handleSelectTab('monthly-stats')}
+                className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${
+                  activeTab === 'monthly-stats' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <CalendarRange className="w-5 h-5 text-indigo-600" />
+                  <span>Thống kê tháng (Ký nhận HS)</span>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">MỚI</span>
+              </button>
+
               <button
                 onClick={() => handleSelectTab('reports')}
                 className={`w-full flex items-center justify-between p-3 rounded-xl text-left text-sm font-semibold transition-colors ${

@@ -1,10 +1,13 @@
 import { Criterion, RankCategory, ScoreThresholds } from '../types';
 
 export const DEFAULT_THRESHOLDS: ScoreThresholds = {
-  excellent: 120,
-  good: 110,
-  wellDone: 100,
-  needEffort: 90,
+  good: 100,      // Điểm TB từ 100 trở lên: Tốt
+  fair: 80,       // Điểm TB từ 80 đến dưới 100: Khá
+  pass: 50,       // Điểm TB từ 50 đến dưới 80: Đạt
+  // Điểm TB dưới 50: Chưa đạt
+  excellent: 100,
+  wellDone: 80,
+  needEffort: 50,
 };
 
 export const DEFAULT_STARTING_SCORE = 100;
@@ -21,6 +24,26 @@ export const DEFAULT_CRITERIA_TEMPLATES: Omit<Criterion, 'criterionId' | 'teache
     order: 1,
   },
   {
+    code: 'ABSENT_PERMITTED',
+    name: 'Nghỉ học có phép',
+    description: 'Nghỉ học có đơn xin phép hoặc phụ huynh báo trước GVCN',
+    positiveScore: 0,
+    negativeScore: -2,
+    category: 'attendance',
+    active: true,
+    order: 2,
+  },
+  {
+    code: 'ABSENT_UNPERMITTED',
+    name: 'Nghỉ học không phép',
+    description: 'Nghỉ học không có lý do hoặc không có phép của phụ huynh/GVCN',
+    positiveScore: 0,
+    negativeScore: -5,
+    category: 'attendance',
+    active: true,
+    order: 3,
+  },
+  {
     code: 'PREPARE_LESSON',
     name: 'Chuẩn bị bài đầy đủ',
     description: 'Học bài và làm bài tập về nhà đầy đủ trước khi đến lớp',
@@ -28,7 +51,7 @@ export const DEFAULT_CRITERIA_TEMPLATES: Omit<Criterion, 'criterionId' | 'teache
     negativeScore: -2,
     category: 'study',
     active: true,
-    order: 2,
+    order: 4,
   },
   {
     code: 'KEEP_SUPPLIES',
@@ -132,45 +155,144 @@ export const DEFAULT_CRITERIA_TEMPLATES: Omit<Criterion, 'criterionId' | 'teache
   },
 ];
 
-export function calculateRank(score: number, thresholds: ScoreThresholds = DEFAULT_THRESHOLDS): { category: RankCategory; stars: number; color: string; badgeClass: string } {
-  if (score >= thresholds.excellent) {
-    return {
-      category: 'XUẤT SẮC',
-      stars: 5,
-      color: 'emerald',
-      badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    };
+export interface RankCalculationOptions {
+  violationsCount?: number;
+  period?: 'week' | 'month';
+}
+
+/**
+ * Xếp loại rèn luyện học sinh theo 4 mức:
+ * - Điểm TB từ 100 trở lên: Tốt (4 sao)
+ * - Điểm TB từ 80 đến dưới 100: Khá (3 sao)
+ * - Điểm TB từ 50 đến dưới 80: Đạt (2 sao)
+ * - Điểm TB dưới 50: Chưa đạt (1 sao)
+ *
+ * Điều kiện khống chế lỗi vi phạm:
+ * - Trong tuần: từ 3 lỗi trở lên KHÔNG xếp loại Tốt (tối đa Khá).
+ * - Trong tháng: từ 5 lỗi trở lên KHÔNG xếp loại Tốt (tối đa Khá).
+ */
+export function calculateRank(
+  score: number, 
+  thresholds: ScoreThresholds = DEFAULT_THRESHOLDS,
+  options?: RankCalculationOptions
+): { 
+  category: RankCategory; 
+  stars: number; 
+  color: string; 
+  badgeClass: string;
+  label: string;
+  demotedDueToViolations?: boolean;
+} {
+  const goodThreshold = thresholds.good ?? 100;
+  const fairThreshold = thresholds.fair ?? (thresholds.wellDone !== undefined ? thresholds.wellDone : 80);
+  const passThreshold = thresholds.pass ?? (thresholds.needEffort !== undefined ? thresholds.needEffort : 50);
+
+  let category: RankCategory;
+  let stars: number;
+  let color: string;
+  let badgeClass: string;
+  let label: string;
+  let demotedDueToViolations = false;
+
+  if (score >= goodThreshold) {
+    category = 'TỐT';
+    stars = 4;
+    color = 'emerald';
+    badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    label = 'Tốt';
+  } else if (score >= fairThreshold) {
+    category = 'KHÁ';
+    stars = 3;
+    color = 'blue';
+    badgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+    label = 'Khá';
+  } else if (score >= passThreshold) {
+    category = 'ĐẠT';
+    stars = 2;
+    color = 'amber';
+    badgeClass = 'bg-amber-50 text-amber-700 border-amber-200';
+    label = 'Đạt';
+  } else {
+    category = 'CHƯA ĐẠT';
+    stars = 1;
+    color = 'rose';
+    badgeClass = 'bg-rose-50 text-rose-700 border-rose-200';
+    label = 'Chưa đạt';
   }
-  if (score >= thresholds.good) {
-    return {
-      category: 'TỐT',
-      stars: 4,
-      color: 'blue',
-      badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
-    };
+
+  // Khống chế vi phạm:
+  // - Tuần: từ 3 lỗi trở lên không xếp loại Tốt
+  // - Tháng: từ 5 lỗi trở lên không xếp loại Tốt
+  if (category === 'TỐT' && options?.violationsCount !== undefined) {
+    const period = options.period || 'week';
+    const violationCap = period === 'month' ? 5 : 3;
+
+    if (options.violationsCount >= violationCap) {
+      category = 'KHÁ';
+      stars = 3;
+      color = 'blue';
+      badgeClass = 'bg-blue-50 text-blue-700 border-blue-200';
+      label = 'Khá';
+      demotedDueToViolations = true;
+    }
   }
-  if (score >= thresholds.wellDone) {
-    return {
-      category: 'HOÀN THÀNH TỐT',
-      stars: 3,
-      color: 'indigo',
-      badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    };
-  }
-  if (score >= thresholds.needEffort) {
-    return {
-      category: 'CẦN CỐ GẮNG',
-      stars: 2,
-      color: 'amber',
-      badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
-    };
-  }
+
   return {
-    category: 'CẦN HỖ TRỢ',
-    stars: 1,
-    color: 'rose',
-    badgeClass: 'bg-rose-50 text-rose-700 border-rose-200',
+    category,
+    stars,
+    color,
+    badgeClass,
+    label,
+    demotedDueToViolations
   };
+}
+
+export function normalizeRankCategory(cat?: string | null): 'TỐT' | 'KHÁ' | 'ĐẠT' | 'CHƯA ĐẠT' {
+  if (!cat) return 'TỐT';
+  const upper = cat.trim().toUpperCase();
+  if (upper === 'TỐT' || upper === 'XUẤT SẮC') return 'TỐT';
+  if (upper === 'KHÁ' || upper === 'HOÀN THÀNH TỐT') return 'KHÁ';
+  if (upper === 'ĐẠT' || upper === 'CẦN CỐ GẮNG') return 'ĐẠT';
+  if (upper === 'CHƯA ĐẠT' || upper === 'CẦN HỖ TRỢ') return 'CHƯA ĐẠT';
+  return 'TỐT';
+}
+
+/**
+ * Kiểm tra xem sự kiện / tiêu chí có phải là Nghỉ học có phép hay không
+ */
+export function isExcusedAbsent(criterionName?: string, code?: string): boolean {
+  const name = (criterionName || '').toLowerCase();
+  const c = (code || '').toUpperCase();
+  return (
+    (name.includes('nghỉ') || name.includes('vắng')) && 
+    (name.includes('có phép') || c.includes('PERMITTED') || c.includes('EXCUSED') || (name.includes('phép') && !name.includes('không phép') && !name.includes('ko phép')))
+  );
+}
+
+/**
+ * Kiểm tra xem sự kiện / tiêu chí có phải là Nghỉ học không phép hay không
+ */
+export function isUnexcusedAbsent(criterionName?: string, code?: string): boolean {
+  const name = (criterionName || '').toLowerCase();
+  const c = (code || '').toUpperCase();
+  return (
+    (name.includes('nghỉ') || name.includes('vắng')) && 
+    (name.includes('không phép') || name.includes('ko phép') || c.includes('UNPERMITTED') || c.includes('UNEXCUSED'))
+  );
+}
+
+/**
+ * Kiểm tra xem sự kiện / tiêu chí có phải là lượt chấm điểm nghỉ học (có phép hoặc không phép) hay không
+ */
+export function isAnyAbsent(criterionName?: string, code?: string, category?: string): boolean {
+  if (isExcusedAbsent(criterionName, code) || isUnexcusedAbsent(criterionName, code)) return true;
+  const name = (criterionName || '').toLowerCase();
+  const c = (code || '').toUpperCase();
+  return (
+    (category === 'attendance' || c.includes('ABSENT')) &&
+    (name.includes('nghỉ') || name.includes('vắng')) &&
+    !name.includes('muộn') && !name.includes('trễ')
+  );
 }
 
 export function formatDateVN(dateStr: string): string {

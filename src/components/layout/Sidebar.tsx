@@ -14,7 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  CalendarRange
 } from 'lucide-react';
 import { useClassData } from '../../hooks/useClassData';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,6 +28,7 @@ export type NavTab =
   | 'rankings'
   | 'history'
   | 'ai-assistant'
+  | 'monthly-stats'
   | 'reports'
   | 'settings';
 
@@ -90,6 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onSelectTab }) => {
         { id: 'rankings', label: 'Xếp hạng', icon: Trophy },
         { id: 'history', label: 'Phân tích', icon: BarChart3 },
         { id: 'ai-assistant', label: 'Trợ lý AI', icon: Bot, badge: 'AI' },
+        { id: 'monthly-stats', label: 'Thống kê tháng (Ký nhận)', icon: CalendarRange, badge: 'MỚI', highlight: true },
         { id: 'reports', label: 'Báo cáo & Phụ huynh', icon: FileText, badge: 'PRO' },
         { id: 'settings', label: 'Cài đặt', icon: Settings },
       ];

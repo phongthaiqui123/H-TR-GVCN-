@@ -44,7 +44,7 @@ import { CadreAssignmentModal } from '../components/modals/CadreAssignmentModal'
 import { StudentRoleModal } from '../components/modals/StudentRoleModal';
 import { ExcelImportModal } from '../components/students/ExcelImportModal';
 import { StudentAccountsModal } from '../components/modals/StudentAccountsModal';
-import { CADRE_ROLES_META, TEAM_ROLES_META } from '../utils/constants';
+import { CADRE_ROLES_META, TEAM_ROLES_META, normalizeRankCategory } from '../utils/constants';
 
 interface StudentsPageProps {
   onSelectStudent?: (studentId: string) => void;
@@ -172,7 +172,7 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
       if (isTeamLeader && s.teamName !== myTeamName) return false;
       const matchSearch = !searchQuery || s.fullName.toLowerCase().includes(searchQuery.toLowerCase()) || `${s.studentNumber}`.includes(searchQuery);
       const matchTeam = isTeamLeader ? true : (teamFilter === 'all' || s.teamName === teamFilter);
-      const matchRank = rankFilter === 'all' || s.rankCategory === rankFilter;
+      const matchRank = rankFilter === 'all' || s.rankCategory === rankFilter || normalizeRankCategory(s.rankCategory) === rankFilter;
       
       let matchRole = true;
       if (roleFilter === 'cadre') {
@@ -819,11 +819,10 @@ export const StudentsPage: React.FC<StudentsPageProps> = ({ onSelectStudent }) =
               className="text-xs bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium focus:outline-none"
             >
               <option value="all">Tất cả xếp loại</option>
-              <option value="XUẤT SẮC">⭐⭐⭐⭐⭐ Xuất sắc</option>
-              <option value="TỐT">⭐⭐⭐⭐ Tốt</option>
-              <option value="HOÀN THÀNH TỐT">⭐⭐⭐ Hoàn thành tốt</option>
-              <option value="CẦN CỐ GẮNG">⭐⭐ Cần cố gắng</option>
-              <option value="CẦN HỖ TRỢ">⚠️ Cần hỗ trợ</option>
+              <option value="TỐT">⭐⭐⭐⭐ Tốt (≥ 100đ, &lt; 3 lỗi/tuần)</option>
+              <option value="KHÁ">⭐⭐⭐ Khá (80 - dưới 100đ)</option>
+              <option value="ĐẠT">⭐⭐ Đạt (50 - dưới 80đ)</option>
+              <option value="CHƯA ĐẠT">⚠️ Chưa đạt (&lt; 50đ)</option>
             </select>
           </div>
         </div>

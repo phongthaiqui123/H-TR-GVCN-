@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   ReportType, 
   ClassInfo, 
@@ -8,7 +8,8 @@ import {
   Criterion, 
   Team,
   SavedReport,
-  ReportStatistics
+  ReportStatistics,
+  WeeklyCadreReview
 } from '../../types';
 import { 
   calculateWeeklyReportStatistics, 
@@ -16,7 +17,8 @@ import {
   calculateSemesterReportStatistics, 
   calculateYearReportStatistics 
 } from '../../utils/reportCalculations';
-import { generateFullReportWithAI } from '../../services/aiService';
+import { generateFullReportWithAI, CadreReportContext } from '../../services/aiService';
+import { getWeeklyCadreReview, getClassWeeklyCadreReviews } from '../../services/firestoreService';
 import { 
   Sparkles, 
   X, 
@@ -25,7 +27,14 @@ import {
   GraduationCap, 
   School, 
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Users,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  MessageSquare,
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 
 interface ReportGenerationModalProps {
@@ -75,6 +84,130 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
   const [extraPrompt, setExtraPrompt] = useState<string>('');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  // Cadre review integration states
+  const [cadreReviews, setCadreReviews] = useState<WeeklyCadreReview[]>([]);
+  const [isLoadingCadre, setIsLoadingCadre] = useState<boolean>(false);
+  const [useCadreFeedback, setUseCadreFeedback] = useState<boolean>(true);
+  const [showCadreDetails, setShowCadreDetails] = useState<boolean>(false);
+
+  // Load cadre reviews whenever period or class changes
+  useEffect(() => {
+    if (!isOpen || !classInfo?.classId) return;
+
+    let isMounted = true;
+    setIsLoadingCadre(true);
+
+    const loadCadreData = async () => {
+      try {
+        if (reportType === 'weekly') {
+          const rev = await getWeeklyCadreReview(classInfo.classId, targetWeek);
+          if (isMounted) {
+            setCadreReviews(rev ? [rev] : []);
+          }
+        } else if (reportType === 'monthly') {
+          const allRevs = await getClassWeeklyCadreReviews(classInfo.classId);
+          if (isMounted) {
+            const matched = allRevs.filter(r => r.weekNumber >= startWeek && r.weekNumber <= endWeek);
+            if (matched.length > 0) {
+              setCadreReviews(matched);
+            } else {
+              const weekList: WeeklyCadreReview[] = [];
+              for (let w = startWeek; w <= endWeek; w++) {
+                const r = await getWeeklyCadreReview(classInfo.classId, w);
+                if (r) weekList.push(r);
+              }
+              if (isMounted) setCadreReviews(weekList);
+            }
+          }
+        } else {
+          const allRevs = await getClassWeeklyCadreReviews(classInfo.classId);
+          if (isMounted) setCadreReviews(allRevs);
+        }
+      } catch (err) {
+        console.warn('Error fetching cadre reviews for report:', err);
+      } finally {
+        if (isMounted) setIsLoadingCadre(false);
+      }
+    };
+
+    loadCadreData();
+    return () => { isMounted = false; };
+  }, [isOpen, classInfo?.classId, reportType, targetWeek, startWeek, endWeek]);
+
+  // Aggregate cadre reviews into structured context
+  const cadreContext = useMemo<CadreReportContext | undefined>(() => {
+    if (!useCadreFeedback) return undefined;
+
+    if (reportType === 'weekly') {
+      const rev = cadreReviews.find(r => r.weekNumber === targetWeek) || cadreReviews[0];
+      if (!rev) return undefined;
+
+      const teamsList = rev.teamAssessments
+        ? Object.entries(rev.teamAssessments).map(([tName, item]) => ({
+            teamName: item?.teamName || tName,
+            authorName: item?.authorName || 'Tổ trưởng',
+            content: item?.content || '',
+            positiveMembers: item?.positiveMembers || '',
+            warningMembers: item?.warningMembers || ''
+          }))
+        : [];
+
+      return {
+        cadreReviews: [rev],
+        generalAssessment: rev.generalAssessment,
+        academicAssessment: rev.academicAssessment,
+        disciplineAssessment: rev.disciplineAssessment,
+        hygieneAssessment: rev.hygieneAssessment,
+        movementAssessment: rev.movementAssessment,
+        treasurerAssessment: rev.treasurerAssessment,
+        teamAssessments: teamsList,
+        nextWeekGoals: rev.nextWeekGoals,
+        teacherFeedback: rev.teacherFeedback,
+        teacherFeedbackAuthor: rev.teacherFeedbackAuthor,
+        useCadreFeedback: true
+      };
+    } else {
+      // Monthly or multi-week aggregation
+      if (cadreReviews.length === 0) return undefined;
+
+      const generalList = cadreReviews.filter(r => r.generalAssessment).map(r => `Tuần ${r.weekNumber}: ${r.generalAssessment}`);
+      const academicList = cadreReviews.filter(r => r.academicAssessment).map(r => `Tuần ${r.weekNumber}: ${r.academicAssessment}`);
+      const disciplineList = cadreReviews.filter(r => r.disciplineAssessment).map(r => `Tuần ${r.weekNumber}: ${r.disciplineAssessment}`);
+      const hygieneList = cadreReviews.filter(r => r.hygieneAssessment).map(r => `Tuần ${r.weekNumber}: ${r.hygieneAssessment}`);
+      const movementList = cadreReviews.filter(r => r.movementAssessment).map(r => `Tuần ${r.weekNumber}: ${r.movementAssessment}`);
+      const teacherFeedbackList = cadreReviews.filter(r => r.teacherFeedback).map(r => `Tuần ${r.weekNumber}: ${r.teacherFeedback}`);
+
+      const teamAssessments: Array<{ teamName: string; authorName?: string; content: string; positiveMembers: string; warningMembers: string }> = [];
+      teams.forEach(t => {
+        const teamItems = cadreReviews.map(r => r.teamAssessments?.[t.teamName]).filter(Boolean);
+        if (teamItems.length > 0) {
+          const contents = teamItems.map(ti => ti.content).filter(Boolean).join('; ');
+          const positives = teamItems.map(ti => ti.positiveMembers).filter(Boolean).join(', ');
+          const warnings = teamItems.map(ti => ti.warningMembers).filter(Boolean).join(', ');
+          teamAssessments.push({
+            teamName: t.teamName,
+            content: contents,
+            positiveMembers: positives,
+            warningMembers: warnings
+          });
+        }
+      });
+
+      return {
+        cadreReviews,
+        generalAssessment: generalList.join(' | '),
+        academicAssessment: academicList.join(' | '),
+        disciplineAssessment: disciplineList.join(' | '),
+        hygieneAssessment: hygieneList.join(' | '),
+        movementAssessment: movementList.join(' | '),
+        teamAssessments,
+        nextWeekGoals: cadreReviews[cadreReviews.length - 1]?.nextWeekGoals,
+        teacherFeedback: teacherFeedbackList.join(' | '),
+        useCadreFeedback: true
+      };
+    }
+  }, [useCadreFeedback, reportType, targetWeek, cadreReviews, teams]);
 
   if (!isOpen) return null;
 
@@ -159,8 +292,13 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
         periodLabel,
         classInfo,
         stats,
-        extraPrompt
+        extraPrompt,
+        cadreContext
       );
+
+      const effectiveTeacherNotes = extraPrompt 
+        ? `Lưu ý chỉ đạo của GVCN: ${extraPrompt}` 
+        : (cadreContext?.teacherFeedback ? `Chỉ đạo của GVCN: ${cadreContext.teacherFeedback}` : '');
 
       const newReport: SavedReport = {
         reportId: `rep_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -170,7 +308,7 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
         period: periodLabel,
         title: defaultTitle,
         content: generatedContent,
-        teacherNotes: extraPrompt ? `Lưu ý chỉ đạo của GVCN: ${extraPrompt}` : '',
+        teacherNotes: effectiveTeacherNotes,
         statistics: stats,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -388,10 +526,148 @@ export const ReportGenerationModal: React.FC<ReportGenerationModalProps> = ({
             )}
           </div>
 
+          {/* Cadre & Teacher Remarks Reference Section */}
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={useCadreFeedback}
+                  onChange={(e) => setUseCadreFeedback(e.target.checked)}
+                  className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300"
+                />
+                <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-indigo-600" />
+                  3. Tham khảo nhận xét Ban cán sự lớp & GVCN
+                </span>
+              </label>
+              <span className="text-[11px] font-semibold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
+                Sát thực tế lớp
+              </span>
+            </div>
+
+            {useCadreFeedback && (
+              <div className="space-y-2 pt-1 border-t border-slate-200/60 text-xs">
+                {isLoadingCadre ? (
+                  <p className="text-slate-400 italic text-[11px] flex items-center gap-1.5">
+                    <Sparkles className="w-3 h-3 animate-spin text-indigo-500" />
+                    Đang đồng bộ nhận xét Ban cán sự và ý kiến GVCN...
+                  </p>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-600 flex items-center gap-1.5 font-medium">
+                        {cadreReviews.length > 0 ? (
+                          <>
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>
+                              {reportType === 'weekly' 
+                                ? `Đã nạp sổ nhận xét Tuần ${targetWeek} (Lớp trưởng, các Lớp phó, 4 Tổ trưởng & GVCN)`
+                                : `Đã tổng hợp ${cadreReviews.length} tuần nhận xét thực tế trong ${monthOption.split(' (')[0]}`
+                              }
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <AlertCircle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span>
+                              {reportType === 'weekly'
+                                ? `Tuần ${targetWeek} chưa có sổ ghi nhận riêng từ Ban cán sự (sẽ dùng dữ liệu chấm điểm thực tế)`
+                                : `Chưa có bản ghi nhận xét nào trong khoảng thời gian này`
+                              }
+                            </span>
+                          </>
+                        )}
+                      </span>
+                      {cadreReviews.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCadreDetails(!showCadreDetails)}
+                          className="text-indigo-600 hover:text-indigo-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                        >
+                          {showCadreDetails ? 'Thu gọn' : 'Xem chi tiết'}
+                          {showCadreDetails ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Collapsible preview of cadre and teacher remarks */}
+                    {showCadreDetails && cadreReviews.length > 0 && (
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-2 text-[11px] text-slate-700 max-h-48 overflow-y-auto animate-fade-in">
+                        {cadreContext?.generalAssessment && (
+                          <div>
+                            <span className="font-bold text-slate-800">👤 Lớp trưởng / Chung:</span>{' '}
+                            <span className="text-slate-600 italic">"{cadreContext.generalAssessment}"</span>
+                          </div>
+                        )}
+                        {cadreContext?.academicAssessment && (
+                          <div>
+                            <span className="font-bold text-slate-800">📚 LP Học tập:</span>{' '}
+                            <span className="text-slate-600 italic">"{cadreContext.academicAssessment}"</span>
+                          </div>
+                        )}
+                        {cadreContext?.disciplineAssessment && (
+                          <div>
+                            <span className="font-bold text-slate-800">⚖️ LP Kỷ luật & Trật tự:</span>{' '}
+                            <span className="text-slate-600 italic">"{cadreContext.disciplineAssessment}"</span>
+                          </div>
+                        )}
+                        {cadreContext?.hygieneAssessment && (
+                          <div>
+                            <span className="font-bold text-slate-800">🧹 LP Lao động & Vệ sinh:</span>{' '}
+                            <span className="text-slate-600 italic">"{cadreContext.hygieneAssessment}"</span>
+                          </div>
+                        )}
+                        {cadreContext?.movementAssessment && (
+                          <div>
+                            <span className="font-bold text-slate-800">⭐ Bí thư (Đoàn - Đội):</span>{' '}
+                            <span className="text-slate-600 italic">"{cadreContext.movementAssessment}"</span>
+                          </div>
+                        )}
+                        {cadreContext?.teamAssessments && cadreContext.teamAssessments.length > 0 && (
+                          <div>
+                            <span className="font-bold text-slate-800">👥 Tổ trưởng 4 tổ:</span>
+                            <div className="pl-2 space-y-0.5 mt-0.5">
+                              {cadreContext.teamAssessments.map((t, idx) => (
+                                <p key={idx} className="text-slate-600">
+                                  • <span className="font-semibold text-slate-700">{t.teamName}:</span> {t.content || 'Nề nếp ổn định'}
+                                  {t.positiveMembers ? ` (Khen: ${t.positiveMembers})` : ''}
+                                  {t.warningMembers ? ` (Nhắc: ${t.warningMembers})` : ''}
+                                </p>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {cadreContext?.teacherFeedback && (
+                          <div className="bg-amber-50/70 p-2 rounded-lg border border-amber-200">
+                            <span className="font-bold text-amber-900">📝 Ý kiến chỉ đạo từ GVCN đã ghi nhận:</span>{' '}
+                            <p className="text-amber-800 italic mt-0.5">"{cadreContext.teacherFeedback}"</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Quick fill button if teacherFeedback exists and extraPrompt is empty */}
+                    {cadreContext?.teacherFeedback && !extraPrompt && (
+                      <button
+                        type="button"
+                        onClick={() => setExtraPrompt(cadreContext.teacherFeedback || '')}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <MessageSquare className="w-3 h-3" />
+                        Điền nhanh ý kiến chỉ đạo đã có của GVCN vào ô ghi chú bên dưới
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Teacher custom emphasis */}
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              3. Yêu cầu hoặc lưu ý riêng từ GVCN (tùy chọn)
+              4. Yêu cầu hoặc lưu ý riêng từ GVCN (tùy chọn)
             </label>
             <textarea
               rows={3}

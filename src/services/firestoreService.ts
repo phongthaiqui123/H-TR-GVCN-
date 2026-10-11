@@ -763,17 +763,21 @@ export async function recalculateStudentWeeklyScore(
   
   let totalPositive = 0;
   let totalNegative = 0;
+  let violationsCount = 0;
   let teacherId = '';
 
   snapshot.forEach(docSnap => {
     const ev = docSnap.data() as CompetitionEvent;
     if (ev.score > 0) totalPositive += ev.score;
-    else if (ev.score < 0) totalNegative += Math.abs(ev.score);
+    else if (ev.score < 0) {
+      totalNegative += Math.abs(ev.score);
+      violationsCount++;
+    }
     if (ev.teacherId) teacherId = ev.teacherId;
   });
 
   const finalScore = startingScore + totalPositive - totalNegative;
-  const rank = calculateRank(finalScore, thresholds);
+  const rank = calculateRank(finalScore, thresholds, { violationsCount, period: 'week' });
 
   const scoreId = `ws_${studentId}_w${week}`;
   const weeklyScoreObj: WeeklyScore = {
